@@ -1,0 +1,110 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aegisvault-staging-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aegisvault_staging}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password required}
+      POSTGRES_DB: ${POSTGRES_DB:-aegisvault_staging}
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aegisvault_staging} -d ${POSTGRES_DB:-aegisvault_staging}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aegisvault_internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: aegisvault-staging-redis
+    restart: always
+    volumes:
+      - redis_staging_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aegisvault_internal
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.api
+    container_name: aegisvault-staging-api
+    restart: always
+    env_file:
+      - .env.staging
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aegisvault_internal
+      - aegisvault_public
+
+  worker:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.worker
+    container_name: aegisvault-staging-worker
+    restart: always
+    command: ["celery", "-A", "apps.worker.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+    env_file:
+      - .env.staging
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aegisvault_internal
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.worker
+    container_name: aegisvault-staging-scheduler
+    restart: always
+    command: ["celery", "-A", "apps.worker.celery_app", "beat", "--loglevel=info"]
+    env_file:
+      - .env.staging
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aegisvault_internal
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.web
+    container_name: aegisvault-staging-web
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.staging
+    depends_on:
+      - api
+    networks:
+      - aegisvault_public
+
+volumes:
+  postgres_staging_data:
+  redis_staging_data:
+
+networks:
+  aegisvault_internal:
+    internal: true
+  aegisvault_public:
+    driver: bridge
