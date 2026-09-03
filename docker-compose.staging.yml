@@ -73,7 +73,7 @@ services:
       dockerfile: deploy/docker/Dockerfile.worker
     container_name: aegisvault-staging-scheduler
     restart: always
-    command: ["celery", "-A", "apps.worker.celery_app", "beat", "--loglevel=info"]
+    command: ["celery", "-A", "apps.worker.celery_app", "beat", "--loglevel=info", "-s", "/tmp/celerybeat-schedule"]
     env_file:
       - .env.staging
     depends_on:

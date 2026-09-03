@@ -8,7 +8,7 @@ from sqlalchemy import select, desc, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.app.models.audit import AuditEvent
 
-GENESIS_HASH = "GENESIS_HASH_00000000000000000000000000000000000000000000000000000000"
+GENESIS_HASH = "GENESIS_HASH_000000000000000000000000000000000000000000000000000"  # 64 chars
 
 
 class AuditService:

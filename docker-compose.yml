@@ -83,7 +83,7 @@ services:
       dockerfile: deploy/docker/Dockerfile.worker
     container_name: aegisvault-scheduler
     restart: unless-stopped
-    command: ["celery", "-A", "apps.worker.celery_app", "beat", "--loglevel=info"]
+    command: ["celery", "-A", "apps.worker.celery_app", "beat", "--loglevel=info", "-s", "/tmp/celerybeat-schedule"]
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aegisvault}:${POSTGRES_PASSWORD:-aegisvault_dev_pass}@postgres:5432/${POSTGRES_DB:-aegisvault}
       REDIS_URL: redis://redis:6379/0
