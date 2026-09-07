@@ -34,7 +34,7 @@ const secretCardVariants = cva(
 )
 
 export interface SecretCardProps
-  extends React.ComponentProps<"div">,
+  extends Omit<React.ComponentProps<"div">, "onCopy">,
     VariantProps<typeof secretCardVariants> {
   secretKey: string
   secretValue: string
@@ -78,6 +78,7 @@ function SecretCard({
     <div
       data-slot="secret-card"
       data-variant={variant}
+      data-className={cn(secretCardVariants({ variant, className }))}
       className={cn(secretCardVariants({ variant, className }))}
       {...props}
     >
@@ -133,7 +134,7 @@ function SecretCard({
             }
             aria-pressed={isRevealed}
             title={isRevealed ? "Hide value" : "Reveal value"}
-            className="inline-flex size-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
             {isRevealed ? (
               <EyeOff className="size-3.5" aria-hidden="true" />
@@ -146,7 +147,7 @@ function SecretCard({
             onClick={handleCopy}
             aria-label={`Copy ${secretKey} to clipboard`}
             title="Copy secret"
-            className="inline-flex size-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Copy className="size-3.5" aria-hidden="true" />
           </button>
@@ -165,7 +166,7 @@ function SecretCard({
             <button
               type="button"
               aria-label={`More actions for ${secretKey}`}
-              className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
               <MoreHorizontal className="size-3.5" aria-hidden="true" />
             </button>

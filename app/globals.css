@@ -15,7 +15,7 @@
   --sidebar-hover: #18181b;
   --sidebar-active: #27272a;
   --sidebar-text: #a1a1aa;
-  --sidebar-text-muted: #71717a;
+  --sidebar-text-muted: #9ca3af;
   --sidebar-text-bright: #f4f4f5;
   --sidebar-border-subtle: #3f3f46;
 
@@ -23,7 +23,7 @@
   --card-border: #e4e4e7;
   --text-main: #09090b;
   --text-muted: #71717a;
-  --text-subtle: #a1a1aa;
+  --text-subtle: #71717a;
   
   --primary: #09090b;
   --primary-foreground: #ffffff;
@@ -695,6 +695,13 @@ body {
   inline-size: 260px;
   block-size: 36px;
   color: var(--text-muted);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.searchbox:focus-within {
+  border-color: var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .searchbox input {

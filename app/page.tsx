@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -252,10 +253,10 @@ export default function Home() {
             </div>
             <button
               type="button"
-              className="bg-transparent border-0 p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+              className="inline-flex size-8 items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-sidebar-hover hover:text-sidebar-text-bright cursor-pointer focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="User account actions"
             >
-              <MoreHorizontal size={14} aria-hidden="true" />
+              <MoreHorizontal size={15} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -322,6 +323,9 @@ export default function Home() {
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Add encrypted secret</DialogTitle>
+                      <DialogDescription className="text-xs text-muted-foreground">
+                        Enter key and secret payload to encrypt and store in the selected environment.
+                      </DialogDescription>
                     </DialogHeader>
                     <div className="dialog-form">
                       <div>
@@ -380,13 +384,13 @@ export default function Home() {
                 </div>
               </section>
 
-              <section className="panel secret-table" aria-label="Secrets list">
-                <div className="table-head">
-                  <span>KEY</span>
-                  <span>VALUE</span>
-                  <span>PATH</span>
-                  <span>UPDATED</span>
-                  <span className="sr-only">Actions</span>
+              <section className="panel secret-table" aria-label="Secrets list" role="table">
+                <div className="table-head" role="row">
+                  <span role="columnheader">KEY</span>
+                  <span role="columnheader">VALUE</span>
+                  <span role="columnheader">PATH</span>
+                  <span role="columnheader">UPDATED</span>
+                  <span className="sr-only" role="columnheader">Actions</span>
                 </div>
 
                 {secrets.length === 0 ? (
@@ -432,8 +436,8 @@ export default function Home() {
                   filtered.map((s) => {
                     const isRevealed = revealed.includes(s.key);
                     return (
-                      <div className="secret-row" key={s.key}>
-                        <div>
+                      <div className="secret-row" key={s.key} role="row">
+                        <div role="cell">
                           <KeyRound size={14} className="text-muted-foreground" aria-hidden="true" />
                           <strong className="font-mono text-xs">{s.key}</strong>
                           {s.rotation && (
@@ -446,13 +450,13 @@ export default function Home() {
                             </span>
                           )}
                         </div>
-                        <code>{isRevealed ? s.value : "••••••••••••••••••••"}</code>
-                        <span className="path">{s.path}</span>
-                        <span className="updated">
+                        <code role="cell">{isRevealed ? s.value : "••••••••••••••••••••"}</code>
+                        <span className="path" role="cell">{s.path}</span>
+                        <span className="updated" role="cell">
                           <strong>{s.updated}</strong>
                           <small>{s.actor} · v{s.version}</small>
                         </span>
-                        <div className="row-actions">
+                        <div className="row-actions" role="cell">
                           <button
                             type="button"
                             onClick={() => toggleReveal(s.key)}
@@ -633,7 +637,7 @@ function Overview({ setSection }: { setSection: (s: string) => void }) {
               <span>365 days</span>
             </div>
             <div>
-              <X size={14} className="text-amber-500" aria-hidden="true" />
+              <X size={14} className="text-amber-700 dark:text-amber-400" aria-hidden="true" />
               <span>1 stale integration</span>
               <button type="button" onClick={() => setSection("Integrations")}>Resolve</button>
             </div>
