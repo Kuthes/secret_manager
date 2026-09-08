@@ -1,0 +1,6 @@
+[Unit]
+Description=AegisVault Enterprise Control Plane Target
+After=network.target postgresql.service redis.service
+
+[Install]
+WantedBy=multi-user.target

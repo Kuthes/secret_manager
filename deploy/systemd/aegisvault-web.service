@@ -1,0 +1,24 @@
+[Unit]
+Description=AegisVault Next.js Web Console
+PartOf=aegisvault.target
+After=network.target aegisvault-api.service
+
+[Service]
+Type=simple
+User={{AEGIS_USER}}
+WorkingDirectory={{AEGIS_ROOT}}
+EnvironmentFile={{AEGIS_ROOT}}/.env
+Environment="PORT=3000"
+Environment="NODE_ENV=production"
+ExecStart=/usr/bin/npm run start -- -p 3000
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+
+# Security Hardening
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+
+[Install]
+WantedBy=aegisvault.target

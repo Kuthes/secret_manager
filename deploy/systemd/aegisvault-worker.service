@@ -1,0 +1,23 @@
+[Unit]
+Description=AegisVault Celery Asynchronous Worker
+PartOf=aegisvault.target
+After=network.target redis.service aegisvault-api.service
+
+[Service]
+Type=simple
+User={{AEGIS_USER}}
+WorkingDirectory={{AEGIS_ROOT}}
+EnvironmentFile={{AEGIS_ROOT}}/.env
+Environment="PYTHONPATH={{AEGIS_ROOT}}:{{AEGIS_ROOT}}/sdk/python"
+ExecStart={{AEGIS_ROOT}}/apps/api/.venv/bin/celery -A apps.worker.celery_app worker --loglevel=info --concurrency=4
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+
+# Security Hardening
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+
+[Install]
+WantedBy=aegisvault.target

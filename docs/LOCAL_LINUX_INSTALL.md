@@ -1,158 +1,98 @@
 # AegisVault Local Linux Installation & Development Guide
 
-This guide covers setting up AegisVault locally on Linux (Ubuntu, Debian, Fedora, Arch, etc.).
+This guide covers setting up and running AegisVault locally on Linux (Ubuntu, Debian, Fedora, RHEL, Rocky, Arch, etc.) — either via **Native Linux Installation (Zero Docker)** or **Docker Compose**.
 
-You can run AegisVault locally via **Docker Compose** (recommended, zero-dependency setup) or **Native Linux Installation**.
-
----
-
-## Method 1: Docker Compose (Quickest & Recommended)
-
-### 1. Prerequisites
-Ensure Docker and Docker Compose are installed:
-```bash
-sudo apt update
-sudo apt install -y docker.io docker-compose-v2
-sudo usermod -aG docker $USER
-newgrp docker
-```
-
-### 2. Start AegisVault
-From the repository root:
-```bash
-docker compose up --build
-```
-
-This launches:
-- **Web Dashboard**: [http://localhost:3000](http://localhost:3000)
-- **API & Swagger Docs**: [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
-- **Mailpit Email UI**: [http://localhost:8025](http://localhost:8025)
-- **PostgreSQL 16**: `localhost:5432`
-- **Redis 7**: `localhost:6379`
-
-Demo credentials (when `DEMO_MODE=true`):
-- **Email**: `demo@aegisvault.local`
-- **Password**: `AegisDemo2026!`
+For a full comparative architecture guide, see [docs/DEPLOYMENT_OPTIONS.md](DEPLOYMENT_OPTIONS.md).
 
 ---
 
-## Method 2: Native Linux Installation (Bare Metal / Development)
+## Method 1: Native Linux Bare-Metal Installation (Zero Docker, Zero K8s)
 
-### 1. System Package Requirements
+### 1. Automated One-Command Installer
 
-#### Ubuntu / Debian:
+Run the automated installer from the repository root:
+
 ```bash
-sudo apt update
-sudo apt install -y python3 python3-pip python3-venv postgresql postgresql-contrib redis-server build-essential libpq-dev curl git
+# Clone the repository
+git clone git@github.com:Kuthes/secret_manager.git aegisvault
+cd aegisvault
+
+# Run the automated installer
+sudo ./scripts/install_linux.sh
 ```
 
-#### Fedora / RHEL:
-```bash
-sudo dnf install -y python3 python3-pip postgresql-server postgresql-contrib redis gcc postgresql-devel curl git
-```
+This automated script:
+1. Installs system packages: Python 3.12+, PostgreSQL 16, Redis 7, Node.js 20+, and build headers.
+2. Starts and provisions PostgreSQL database `aegisvault` and Redis server.
+3. Sets up Python virtual environment (`apps/api/.venv`) and installs dependencies.
+4. Builds the Next.js production frontend assets.
+5. Generates a production `.env` configuration file with cryptographically secure random keys.
 
-#### Arch Linux:
+---
+
+### 2. Service Management with `aegisvault-ctl`
+
+AegisVault includes a built-in process controller (`scripts/aegisvault_ctl.sh`):
+
 ```bash
-sudo pacman -S python python-pip postgresql redis base-devel postgresql-libs curl git nodejs npm
+# Start all services in the background (API, Celery Worker, Celery Beat, Web Console)
+./scripts/aegisvault_ctl.sh start
+
+# Check service status, memory usage, and health checks
+./scripts/aegisvault_ctl.sh status
+
+# Stream live unified logs
+./scripts/aegisvault_ctl.sh logs
+
+# Stop all running services
+./scripts/aegisvault_ctl.sh stop
 ```
 
 ---
 
-### 2. Configure Local PostgreSQL & Redis
+### 3. Native Local Development Mode
 
-#### Start and Enable Redis:
-```bash
-sudo systemctl enable --now redis-server || sudo systemctl enable --now redis
-```
+To run with live hot-reloading for local code changes:
 
-#### Setup PostgreSQL Database and User:
 ```bash
-sudo -u postgres psql -c "CREATE USER aegisvault WITH PASSWORD 'aegisvault_dev_pass' SUPERUSER;"
-sudo -u postgres psql -c "CREATE DATABASE aegisvault OWNER aegisvault;"
+./scripts/aegisvault_ctl.sh dev
 ```
 
 ---
 
-### 3. Setup Python Backend Environment
+### 4. Production Systemd Service Units
+
+To run AegisVault as managed Linux system services that start automatically on boot:
 
 ```bash
-# 1. Navigate to API directory
-cd apps/api
+# Install and enable systemd units
+sudo ./scripts/aegisvault_ctl.sh systemd install
 
-# 2. Create Python virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# 3. Upgrade pip and install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-cd ../..
-```
-
-#### Create `.env` for Local Development:
-```bash
-cat << 'ENV' > .env
-ENVIRONMENT=development
-DEBUG=true
-DEMO_MODE=true
-
-DATABASE_URL=postgresql+asyncpg://aegisvault:aegisvault_dev_pass@localhost:5432/aegisvault
-REDIS_URL=redis://localhost:6379/0
-
-MASTER_ENCRYPTION_KEY=TESTONLY_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-MEK_ID=mek-local-v1
-SECRET_KEY=TESTONLY_insecure_jwt_secret_key_for_development
-API_V1_STR=/api/v1
-
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
-ENV
+# Manage via standard systemctl
+sudo systemctl start aegisvault.target
+sudo systemctl status aegisvault.target
+sudo systemctl restart aegisvault.target
 ```
 
 ---
 
-### 4. Setup Node.js Frontend
+## Method 2: Docker Compose (Single-Command Containerized Setup)
 
-Ensure Node.js (>= 20.x or 22.x) is installed:
 ```bash
-# Install dependencies
-npm install
+# Copy environment configuration
+cp .env.example .env
+
+# Launch production compose stack
+docker compose -f docker-compose.production.yml up --build -d
 ```
 
 ---
 
-### 5. Running the Services
+## Verifying the Installation
 
-Open separate terminal tabs or use a process manager (e.g. `tmux` / `foreman`):
+Execute the test suite to verify cryptographic and tenant isolation invariants:
 
-#### Terminal 1: Backend API
 ```bash
-source apps/api/.venv/bin/activate
-PYTHONPATH=. uvicorn apps.api.app.main:app --host 0.0.0.0 --port 8000 --reload
+PYTHONPATH=.:sdk/python pytest tests/ -v
 ```
-
-#### Terminal 2: Celery Background Worker
-```bash
-source apps/api/.venv/bin/activate
-PYTHONPATH=. celery -A apps.worker.celery_app worker --loglevel=info
-```
-
-#### Terminal 3: Celery Beat Scheduler
-```bash
-source apps/api/.venv/bin/activate
-PYTHONPATH=. celery -A apps.worker.celery_app beat --loglevel=info
-```
-
-#### Terminal 4: Frontend Web UI
-```bash
-npm run dev
-```
-
----
-
-## 6. Running Security & Unit Test Suite
-
-To verify your local installation, execute the full test suite:
-```bash
-PYTHONPATH=. apps/api/.venv/bin/pytest tests/
-```
-All **105 tests** should pass.
+All **150 tests** should pass.

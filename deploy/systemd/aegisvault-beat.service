@@ -1,0 +1,22 @@
+[Unit]
+Description=AegisVault Celery Beat Periodic Scheduler
+PartOf=aegisvault.target
+After=network.target redis.service aegisvault-worker.service
+
+[Service]
+Type=simple
+User={{AEGIS_USER}}
+WorkingDirectory={{AEGIS_ROOT}}
+EnvironmentFile={{AEGIS_ROOT}}/.env
+Environment="PYTHONPATH={{AEGIS_ROOT}}:{{AEGIS_ROOT}}/sdk/python"
+ExecStart={{AEGIS_ROOT}}/apps/api/.venv/bin/celery -A apps.worker.celery_app beat --loglevel=info
+Restart=on-failure
+RestartSec=5s
+
+# Security Hardening
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+
+[Install]
+WantedBy=aegisvault.target

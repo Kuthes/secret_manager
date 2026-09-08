@@ -27,19 +27,31 @@ AegisVault is an enterprise-grade, self-hostable identity security, secret manag
 
 ## 🚀 Quick Start
 
-### 1. Run Production Stack with Docker Compose
+### Option A: Native Linux Bare-Metal Installation (Zero Docker, Zero K8s)
 
 ```bash
 # Clone the repository
 git clone git@github.com:Kuthes/secret_manager.git aegisvault
 cd aegisvault
 
+# Run the automated native installer
+sudo ./scripts/install_linux.sh
+
+# Start services in background (or use: ./scripts/aegisvault_ctl.sh dev)
+./scripts/aegisvault_ctl.sh start
+```
+
+### Option B: Production Docker Compose (Containerized)
+
+```bash
 # Copy environment configuration
 cp .env.example .env
 
 # Launch all services (PostgreSQL 16, Redis 7, FastAPI API, Celery Workers, Next.js Web Console)
 docker compose -f docker-compose.production.yml up --build -d
 ```
+
+*For complete comparative architecture and Kubernetes setup, see [docs/DEPLOYMENT_OPTIONS.md](docs/DEPLOYMENT_OPTIONS.md).*
 
 ### 2. Access the Platform
 
