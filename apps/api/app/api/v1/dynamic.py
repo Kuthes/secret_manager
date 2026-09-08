@@ -1,28 +1,37 @@
 import json
-import uuid
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
-from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.app.api.deps import get_current_org, get_current_user, require_permission
+from apps.api.app.api.loaders import (
+    get_owned_dynamic_lease,
+    get_owned_dynamic_provider,
+    get_owned_environment,
+)
+from apps.api.app.core.crypto import crypto_engine
+from apps.api.app.core.dynamic_engines import get_dynamic_engine
 from apps.api.app.db.session import get_db
-from apps.api.app.models.dynamic_secret import DynamicSecretProvider, DynamicCredentialLease
-from apps.api.app.models.user import Project, Organization, User
+from apps.api.app.models.dynamic_secret import (
+    DynamicCredentialLease,
+    DynamicSecretProvider,
+)
+from apps.api.app.models.user import Organization, Project, User
 from apps.api.app.schemas.dynamic import (
     DynamicProviderCreate,
     DynamicProviderResponse,
     LeaseIssueRequest,
     LeaseResponse,
 )
-from apps.api.app.core.crypto import crypto_engine
-from apps.api.app.api.deps import get_current_user, get_current_org, require_permission
 
 router = APIRouter(prefix="/dynamic", tags=["Dynamic Secrets"])
 
 
-@router.get("/providers", response_model=List[DynamicProviderResponse], dependencies=[Depends(require_permission("dynamic:list"))])
+@router.get("/providers", response_model=list[DynamicProviderResponse], dependencies=[Depends(require_permission("dynamic:list"))])
 async def list_providers(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -38,9 +47,16 @@ async def create_provider(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
 ):
-    project = await db.get(Project, req.project_id)
-    if not project or project.is_deleted or project.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    # Validate provider type with engine registry
+    get_dynamic_engine(req.provider_type)
+
+    # Verify environment belongs to project and organization
+    await get_owned_environment(
+        db=db,
+        environment_id=req.environment_id,
+        project_id=req.project_id,
+        organization_id=org.id,
+    )
 
     enc = crypto_engine.encrypt_secret(
         plaintext=json.dumps(req.config),
@@ -72,27 +88,38 @@ async def issue_lease(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    provider = await db.get(DynamicSecretProvider, provider_id)
-    if not provider or not provider.is_active:
+    provider = await get_owned_dynamic_provider(db=db, provider_id=provider_id, organization_id=org.id)
+    if not provider.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dynamic provider not found or inactive")
 
-    project = await db.get(Project, provider.project_id)
-    if not project or project.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dynamic provider not found or inactive")
+    engine = get_dynamic_engine(provider.provider_type)
 
     ttl = req.ttl_seconds or provider.default_ttl_seconds
     ttl = min(ttl, provider.max_ttl_seconds)
 
-    # Generate ephemeral credential identity
-    suffix = secrets.token_hex(4)
-    username = f"aegis_tmp_{suffix}"
-    password = f"P_{secrets.token_urlsafe(16)}"
+    # Decrypt provider config for engine execution
+    raw_config = {}
+    try:
+        enc_data = json.loads(provider.config_encrypted)
+        decrypted_json = crypto_engine.decrypt_secret(
+            encrypted_payload=enc_data,
+            org_id=str(org.id),
+            project_id=str(provider.project_id),
+            environment_id=str(provider.environment_id),
+            secret_key=provider.name,
+            version=1,
+        )
+        raw_config = json.loads(decrypted_json)
+    except Exception:
+        raw_config = {}
+
+    credentials, meta = engine.generate_credentials(raw_config, ttl)
+    username = credentials.get("username", f"aegis_tmp_{secrets.token_hex(4)}")
     now = datetime.now(timezone.utc)
     expires = now + timedelta(seconds=ttl)
 
-    credentials = {"username": username, "password": password}
     enc = crypto_engine.encrypt_secret(
-        plaintext=json.dumps(credentials),
+        plaintext=json.dumps({"credentials": credentials, "metadata": meta}),
         org_id=str(org.id),
         project_id=str(provider.project_id),
         environment_id=str(provider.environment_id),
@@ -130,14 +157,7 @@ async def revoke_lease(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    lease = await db.get(DynamicCredentialLease, lease_id)
-    if not lease:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lease not found")
-
-    provider = await db.get(DynamicSecretProvider, lease.provider_id)
-    project = await db.get(Project, provider.project_id) if provider else None
-    if not provider or not project or project.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lease not found")
+    lease = await get_owned_dynamic_lease(db=db, lease_id=lease_id, organization_id=org.id)
 
     lease.status = "revoked"
     lease.revoked_at = datetime.now(timezone.utc)

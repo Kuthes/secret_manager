@@ -1,11 +1,12 @@
 import uuid
 from datetime import datetime
-from typing import List, Optional
-from sqlalchemy import String, Integer, ForeignKey, Text, Boolean, DateTime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from apps.api.app.db.session import Base
-from apps.api.app.models.base import UUIDPrimaryKeyMixin, TimestampMixin
+from apps.api.app.models.base import TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class DynamicSecretProvider(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -20,7 +21,7 @@ class DynamicSecretProvider(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     config_encrypted: Mapped[str] = mapped_column(Text, nullable=False)  # Provider connection and credential config
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    leases: Mapped[List["DynamicCredentialLease"]] = relationship("DynamicCredentialLease", back_populates="provider", cascade="all, delete-orphan")
+    leases: Mapped[list["DynamicCredentialLease"]] = relationship("DynamicCredentialLease", back_populates="provider", cascade="all, delete-orphan")
 
 
 class DynamicCredentialLease(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -31,8 +32,8 @@ class DynamicCredentialLease(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     credential_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     ttl_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False, index=True)  # "active", "expired", "revoked"
-    requester_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    requester_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     provider: Mapped["DynamicSecretProvider"] = relationship("DynamicSecretProvider", back_populates="leases")

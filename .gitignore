@@ -47,17 +47,12 @@ __pycache__/
 .pytest_cache/
 
 # Local secrets
+# Local secrets
 .env
 .env.*
 !.env.example
 !.env.staging.example
 
-# Python generated files
-__pycache__/
-*.py[cod]
-.pytest_cache/
-
-# Local secrets
-.env
-.env.*
-!.env.example
+# Build info and artifacts
+artifacts/
+*.tsbuildinfo

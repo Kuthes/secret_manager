@@ -1,25 +1,40 @@
 import uuid
-from fastapi import APIRouter, Depends, Response, Header, HTTPException, status
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.app.api.deps import get_current_user
 from apps.api.app.core.config import settings
 from apps.api.app.db.session import get_db
+from apps.api.app.models.user import Organization, User
 from apps.api.app.schemas.auth import (
-    RegisterRequest,
+    JWTOIDCAuthRequest,
+    KubernetesAuthRequest,
     LoginRequest,
-    TokenResponse,
-    UserResponse,
+    MachineTokenResponse,
     MFASetupResponse,
     MFAVerifyRequest,
+    RegisterRequest,
+    TokenResponse,
     UniversalAuthRequest,
-    KubernetesAuthRequest,
-    MachineTokenResponse,
+    UserResponse,
 )
 from apps.api.app.services.auth_service import auth_service
-from apps.api.app.api.deps import get_current_user, get_current_org
-from apps.api.app.models.user import User, Organization
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    """Sets hardened, trusted application session cookie."""
+    response.set_cookie(
+        key="aegis_session",
+        value=token,
+        httponly=settings.COOKIE_HTTPONLY,
+        samesite=settings.COOKIE_SAMESITE,
+        secure=settings.is_cookie_secure,
+        max_age=settings.COOKIE_MAX_AGE_SECONDS,
+        path="/",
+    )
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -31,18 +46,10 @@ async def register(req: RegisterRequest, response: Response, db: AsyncSession = 
         full_name=req.full_name,
         org_name=req.org_name,
     )
-    is_prod = settings.ENVIRONMENT == "production"
-    response.set_cookie(
-        key="aegis_session",
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=is_prod,
-        max_age=86400,
-    )
+    _set_auth_cookie(response, token)
     return TokenResponse(
         access_token=token,
-        expires_in=86400,
+        expires_in=settings.COOKIE_MAX_AGE_SECONDS,
         user_id=user.id,
         email=user.email,
         full_name=user.full_name,
@@ -60,19 +67,11 @@ async def login(req: LoginRequest, response: Response, db: AsyncSession = Depend
         password=req.password,
         mfa_code=req.mfa_code,
     )
-    is_prod = settings.ENVIRONMENT == "production"
-    response.set_cookie(
-        key="aegis_session",
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=is_prod,
-        max_age=86400,
-    )
+    _set_auth_cookie(response, token)
     role_slug = user.memberships[0].role.slug if (user.memberships and user.memberships[0].role) else "viewer"
     return TokenResponse(
         access_token=token,
-        expires_in=86400,
+        expires_in=settings.COOKIE_MAX_AGE_SECONDS,
         user_id=user.id,
         email=user.email,
         full_name=user.full_name,
@@ -89,7 +88,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 @router.post("/logout")
 async def logout(response: Response):
-    response.delete_cookie("aegis_session")
+    response.delete_cookie("aegis_session", path="/")
     return {"message": "Logged out successfully"}
 
 
@@ -160,5 +159,34 @@ async def machine_kubernetes_auth(
         expires_in=3600,
         identity_type="kubernetes_auth",
         identity_name="k8s-pod",
+        org_id=org.id,
+    )
+
+
+@router.post("/machine/jwt", response_model=MachineTokenResponse)
+async def machine_jwt_oidc_auth(
+    req: JWTOIDCAuthRequest,
+    x_org_id: str = Header(..., alias="X-Organization-Id"),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        org_id = uuid.UUID(x_org_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid organization ID in header")
+
+    org = await db.get(Organization, org_id)
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    token = await auth_service.authenticate_jwt_oidc_machine(
+        db=db,
+        org_id=org.id,
+        jwt_token=req.token,
+    )
+    return MachineTokenResponse(
+        access_token=token,
+        expires_in=3600,
+        identity_type="jwt_oidc_auth",
+        identity_name="oidc-workload",
         org_id=org.id,
     )

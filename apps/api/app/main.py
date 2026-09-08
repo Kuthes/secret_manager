@@ -2,15 +2,14 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
-from apps.api.app.core.config import settings
 from apps.api.app.api.v1.router import api_router
-from apps.api.app.db.session import engine, Base, async_session_factory
+from apps.api.app.core.config import settings
+from apps.api.app.db.session import Base, async_session_factory, engine
 from apps.api.app.services.seed_service import seed_service
-import apps.api.app.models  # Ensure all models are registered
 
 # Configure structured logging
 logging.basicConfig(
@@ -70,6 +69,8 @@ async def security_and_telemetry_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["Content-Security-Policy"] = "default-src 'self'"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
 
     duration = round((time.time() - start_time) * 1000, 2)
     # Log request securely (never logging bodies or auth credentials)
@@ -78,7 +79,10 @@ async def security_and_telemetry_middleware(request: Request, call_next):
     return response
 
 
+from apps.api.app.api.v1.health import router as health_router
+
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(health_router)
 
 
 @app.get("/")

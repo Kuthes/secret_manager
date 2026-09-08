@@ -1,6 +1,3 @@
-import hashlib
-import json
-import pytest
 from apps.api.app.services.scanner_service import scanner_service
 
 

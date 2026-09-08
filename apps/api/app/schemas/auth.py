@@ -1,19 +1,19 @@
 import uuid
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=255)
     password: str = Field(..., min_length=8)
     full_name: str = Field(..., min_length=2)
-    org_name: Optional[str] = None
+    org_name: str | None = None
 
 
 class LoginRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=255)
     password: str
-    mfa_code: Optional[str] = None
+    mfa_code: str | None = None
 
 
 class TokenResponse(BaseModel):
@@ -23,9 +23,9 @@ class TokenResponse(BaseModel):
     user_id: uuid.UUID
     email: str
     full_name: str
-    org_id: Optional[uuid.UUID] = None
-    org_name: Optional[str] = None
-    role: Optional[str] = None
+    org_id: uuid.UUID | None = None
+    org_name: str | None = None
+    role: str | None = None
     mfa_required: bool = False
 
 
@@ -43,7 +43,7 @@ class UserResponse(BaseModel):
 class MFASetupResponse(BaseModel):
     secret: str
     otpauth_uri: str
-    recovery_codes: List[str]
+    recovery_codes: list[str]
 
 
 class MFAVerifyRequest(BaseModel):
@@ -57,7 +57,12 @@ class UniversalAuthRequest(BaseModel):
 
 class KubernetesAuthRequest(BaseModel):
     jwt: str = Field(..., description="Kubernetes service account projected volume token")
-    role: Optional[str] = Field(default="developer")
+    role: str | None = Field(default="developer")
+
+
+class JWTOIDCAuthRequest(BaseModel):
+    token: str = Field(..., description="Signed JWT from trusted OIDC identity provider")
+    role: str | None = Field(default="developer")
 
 
 class MachineTokenResponse(BaseModel):

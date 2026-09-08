@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ScannerRepoCreate(BaseModel):
@@ -18,7 +18,7 @@ class ScannerRepoResponse(BaseModel):
     repo_url: str
     default_branch: str
     status: str
-    last_scan_at: Optional[datetime] = None
+    last_scan_at: datetime | None = None
 
 
 class ScanFindingResponse(BaseModel):
@@ -32,5 +32,5 @@ class ScanFindingResponse(BaseModel):
     redacted_preview: str
     severity: str
     status: str
-    resolution_comment: Optional[str] = None
+    resolution_comment: str | None = None
     created_at: datetime

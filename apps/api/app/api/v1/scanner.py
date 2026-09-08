@@ -1,16 +1,19 @@
 import uuid
-from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, and_, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.app.db.session import get_db
-from apps.api.app.models.scanner import ScannerRepository, ScanJob, ScanFinding
-from apps.api.app.models.user import Project, Organization
-from apps.api.app.schemas.scanner import ScannerRepoCreate, ScannerRepoResponse, ScanFindingResponse
-from apps.api.app.services.scanner_service import scanner_service
 from apps.api.app.api.deps import get_current_org, require_permission
+from apps.api.app.db.session import get_db
+from apps.api.app.models.scanner import ScanFinding, ScanJob, ScannerRepository
+from apps.api.app.models.user import Organization, Project
+from apps.api.app.schemas.scanner import (
+    ScanFindingResponse,
+    ScannerRepoResponse,
+)
+from apps.api.app.services.scanner_service import scanner_service
 
 router = APIRouter(prefix="/scanner", tags=["Secret Scanner"])
 
@@ -21,7 +24,7 @@ class ScanPayloadRequest(BaseModel):
     file_path: str = Field(default="payload.env")
 
 
-@router.get("/repositories", response_model=List[ScannerRepoResponse], dependencies=[Depends(require_permission("scanner:read"))])
+@router.get("/repositories", response_model=list[ScannerRepoResponse], dependencies=[Depends(require_permission("scanner:read"))])
 async def list_repositories(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -35,7 +38,7 @@ async def list_repositories(
     return res.scalars().all()
 
 
-@router.get("/findings", response_model=List[ScanFindingResponse], dependencies=[Depends(require_permission("scanner:read"))])
+@router.get("/findings", response_model=list[ScanFindingResponse], dependencies=[Depends(require_permission("scanner:read"))])
 async def list_findings(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -52,7 +55,7 @@ async def list_findings(
     return res.scalars().all()
 
 
-@router.post("/scan", response_model=List[ScanFindingResponse], dependencies=[Depends(require_permission("scanner:scan"))])
+@router.post("/scan", response_model=list[ScanFindingResponse], dependencies=[Depends(require_permission("scanner:scan"))])
 async def scan_content(
     req: ScanPayloadRequest,
     db: AsyncSession = Depends(get_db),

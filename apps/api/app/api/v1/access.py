@@ -1,27 +1,28 @@
 import uuid
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, and_
+
+from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from apps.api.app.api.deps import get_current_org, get_current_user, require_permission
+from apps.api.app.api.loaders import get_owned_pam_request, get_owned_pam_resource
 from apps.api.app.db.session import get_db
-from apps.api.app.models.pam import AccessResource, AccessRequest, AccessApproval
-from apps.api.app.models.user import User, Organization
+from apps.api.app.models.pam import AccessRequest, AccessResource
+from apps.api.app.models.user import Organization, User
 from apps.api.app.schemas.pam import (
-    AccessResourceCreate,
-    AccessResourceResponse,
     AccessRequestCreate,
     AccessRequestResponse,
+    AccessResourceCreate,
+    AccessResourceResponse,
     ApprovalRequest,
 )
 from apps.api.app.services.pam_service import pam_service
-from apps.api.app.api.deps import get_current_user, get_current_org, require_permission
 
 router = APIRouter(prefix="/access", tags=["Privileged Access"])
 
 
-@router.get("/resources", response_model=List[AccessResourceResponse], dependencies=[Depends(require_permission("pam:list"))])
+@router.get("/resources", response_model=list[AccessResourceResponse], dependencies=[Depends(require_permission("pam:list"))])
 async def list_resources(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -50,7 +51,7 @@ async def create_resource(
     return resource
 
 
-@router.get("/requests", response_model=List[AccessRequestResponse], dependencies=[Depends(require_permission("pam:list"))])
+@router.get("/requests", response_model=list[AccessRequestResponse], dependencies=[Depends(require_permission("pam:list"))])
 async def list_requests(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -92,13 +93,11 @@ async def create_request(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    resource = await db.get(AccessResource, req.resource_id)
-    if not resource or resource.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Protected resource not found")
+    resource = await get_owned_pam_resource(db=db, resource_id=req.resource_id, organization_id=org.id)
 
     access_req = await pam_service.create_request(
         db=db,
-        resource_id=req.resource_id,
+        resource_id=resource.id,
         requester_id=user.id,
         requester_name=user.full_name,
         justification=req.justification,
@@ -126,17 +125,11 @@ async def review_request(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    access_req = await db.get(AccessRequest, request_id)
-    if not access_req:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Access request not found")
-
-    resource = await db.get(AccessResource, access_req.resource_id)
-    if not resource or resource.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Access request not found")
+    access_req = await get_owned_pam_request(db=db, request_id=request_id, organization_id=org.id)
 
     reviewed = await pam_service.review_request(
         db=db,
-        request_id=request_id,
+        request_id=access_req.id,
         approver_id=user.id,
         approver_name=user.full_name,
         decision=req.decision,
@@ -146,7 +139,7 @@ async def review_request(
     return AccessRequestResponse(
         id=reviewed.id,
         resource_id=reviewed.resource_id,
-        resource_name=resource.name if resource else None,
+        resource_name=access_req.resource.name if access_req.resource else None,
         requester_id=reviewed.requester_id,
         requester_name=requester.full_name if requester else "Unknown User",
         justification=reviewed.justification,
@@ -164,17 +157,11 @@ async def revoke_request(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    access_req = await db.get(AccessRequest, request_id)
-    if not access_req:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Access request not found")
-
-    resource = await db.get(AccessResource, access_req.resource_id)
-    if not resource or resource.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Access request not found")
+    access_req = await get_owned_pam_request(db=db, request_id=request_id, organization_id=org.id)
 
     revoked = await pam_service.revoke_request(
         db=db,
-        request_id=request_id,
+        request_id=access_req.id,
         actor_id=user.id,
         actor_name=user.full_name,
     )
@@ -182,7 +169,7 @@ async def revoke_request(
     return AccessRequestResponse(
         id=revoked.id,
         resource_id=revoked.resource_id,
-        resource_name=resource.name if resource else None,
+        resource_name=access_req.resource.name if access_req.resource else None,
         requester_id=revoked.requester_id,
         requester_name=requester.full_name if requester else "Unknown User",
         justification=revoked.justification,

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AccessResourceCreate(BaseModel):
@@ -32,16 +32,16 @@ class AccessRequestResponse(BaseModel):
 
     id: uuid.UUID
     resource_id: uuid.UUID
-    resource_name: Optional[str] = None
+    resource_name: str | None = None
     requester_id: uuid.UUID
-    requester_name: Optional[str] = None
+    requester_name: str | None = None
     justification: str
     duration_seconds: int
     status: str
-    expires_at: Optional[datetime] = None
+    expires_at: datetime | None = None
     created_at: datetime
 
 
 class ApprovalRequest(BaseModel):
     decision: str = Field(..., pattern="^(approved|rejected)$")
-    comment: Optional[str] = None
+    comment: str | None = None

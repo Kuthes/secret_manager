@@ -1,31 +1,32 @@
 import uuid
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, and_
+
+from fastapi import APIRouter, Depends, status
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.app.api.deps import get_current_org, get_current_user, require_permission
+from apps.api.app.api.loaders import get_owned_kms_key, get_owned_project
 from apps.api.app.db.session import get_db
 from apps.api.app.models.kms import ManagedKey
-from apps.api.app.models.user import User, Organization
+from apps.api.app.models.user import Organization, User
 from apps.api.app.schemas.kms import (
-    KeyCreateRequest,
-    KeyResponse,
-    EncryptRequest,
-    EncryptResponse,
     DecryptRequest,
     DecryptResponse,
+    EncryptRequest,
+    EncryptResponse,
+    KeyCreateRequest,
+    KeyResponse,
     SignRequest,
     SignResponse,
     VerifyRequest,
     VerifyResponse,
 )
 from apps.api.app.services.kms_service import kms_service
-from apps.api.app.api.deps import get_current_user, get_current_org, require_permission
 
 router = APIRouter(prefix="/kms", tags=["KMS"])
 
 
-@router.get("/keys", response_model=List[KeyResponse], dependencies=[Depends(require_permission("kms:list"))])
+@router.get("/keys", response_model=list[KeyResponse], dependencies=[Depends(require_permission("kms:list"))])
 async def list_keys(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -42,6 +43,9 @@ async def create_key(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
+    if req.project_id:
+        await get_owned_project(db=db, project_id=req.project_id, organization_id=org.id)
+
     key = await kms_service.create_key(
         db=db,
         organization_id=org.id,
@@ -63,19 +67,17 @@ async def encrypt_data(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    key = await db.get(ManagedKey, key_id)
-    if not key or key.is_deleted or key.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Key not found")
+    key = await get_owned_kms_key(db=db, key_id=key_id, organization_id=org.id)
 
     ct, nonce, ver = await kms_service.encrypt(
         db=db,
-        key_id=key_id,
+        key_id=key.id,
         plaintext=req.plaintext,
         actor_id=user.id,
         actor_name=user.full_name,
     )
     return EncryptResponse(
-        key_id=key_id,
+        key_id=key.id,
         key_version=ver,
         ciphertext=ct,
         nonce=nonce,
@@ -90,13 +92,11 @@ async def decrypt_data(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    key = await db.get(ManagedKey, key_id)
-    if not key or key.is_deleted or key.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Key not found")
+    key = await get_owned_kms_key(db=db, key_id=key_id, organization_id=org.id)
 
     pt = await kms_service.decrypt(
         db=db,
-        key_id=key_id,
+        key_id=key.id,
         ciphertext_b64=req.ciphertext,
         nonce_b64=req.nonce,
         version=req.version,
@@ -104,7 +104,7 @@ async def decrypt_data(
         actor_name=user.full_name,
     )
     return DecryptResponse(
-        key_id=key_id,
+        key_id=key.id,
         plaintext=pt,
     )
 
@@ -116,13 +116,11 @@ async def rotate_key(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    key = await db.get(ManagedKey, key_id)
-    if not key or key.is_deleted or key.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Key not found")
+    key = await get_owned_kms_key(db=db, key_id=key_id, organization_id=org.id)
 
     rotated = await kms_service.rotate_key(
         db=db,
-        key_id=key_id,
+        key_id=key.id,
         actor_id=user.id,
         actor_name=user.full_name,
     )
@@ -137,19 +135,17 @@ async def sign_data(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    key = await db.get(ManagedKey, key_id)
-    if not key or key.is_deleted or key.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Key not found")
+    key = await get_owned_kms_key(db=db, key_id=key_id, organization_id=org.id)
 
     signature, ver = await kms_service.sign(
         db=db,
-        key_id=key_id,
+        key_id=key.id,
         message=req.message,
         actor_id=user.id,
         actor_name=user.full_name,
     )
     return SignResponse(
-        key_id=key_id,
+        key_id=key.id,
         key_version=ver,
         signature=signature,
     )
@@ -163,13 +159,11 @@ async def verify_data(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    key = await db.get(ManagedKey, key_id)
-    if not key or key.is_deleted or key.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Key not found")
+    key = await get_owned_kms_key(db=db, key_id=key_id, organization_id=org.id)
 
     is_valid = await kms_service.verify(
         db=db,
-        key_id=key_id,
+        key_id=key.id,
         message=req.message,
         signature_b64=req.signature,
         version=req.version,
@@ -177,7 +171,7 @@ async def verify_data(
         actor_name=user.full_name,
     )
     return VerifyResponse(
-        key_id=key_id,
+        key_id=key.id,
         valid=is_valid,
     )
 
@@ -189,9 +183,7 @@ async def disable_key(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    key = await db.get(ManagedKey, key_id)
-    if not key or key.is_deleted or key.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Key not found")
+    key = await get_owned_kms_key(db=db, key_id=key_id, organization_id=org.id)
 
     key.status = "disabled"
     await db.flush()

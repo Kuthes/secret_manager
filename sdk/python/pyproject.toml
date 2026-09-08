@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aegisvault"
+version = "0.1.0"
+description = "Official Python client SDK for the AegisVault Security & Secret Management Platform."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "AegisVault Team", email = "security@aegisvault.io" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Security",
+    "Software Development :: Libraries",
+]
+dependencies = [
+    "httpx>=0.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]

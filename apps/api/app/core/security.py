@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Any, Dict
+from typing import Any
+
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+
 from apps.api.app.core.config import settings
 
 hasher = PasswordHasher(
@@ -27,7 +29,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def create_access_token(subject: str, org_id: Optional[str] = None, expires_delta: Optional[timedelta] = None, extra_claims: Optional[Dict[str, Any]] = None) -> str:
+def create_access_token(subject: str, org_id: str | None = None, expires_delta: timedelta | None = None, extra_claims: dict[str, Any] | None = None) -> str:
     """Generate signed JWT token."""
     now = datetime.now(timezone.utc)
     if expires_delta:
@@ -35,7 +37,7 @@ def create_access_token(subject: str, org_id: Optional[str] = None, expires_delt
     else:
         expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode: Dict[str, Any] = {
+    to_encode: dict[str, Any] = {
         "sub": str(subject),
         "iat": int(now.timestamp()),
         "exp": int(expire.timestamp()),
@@ -49,7 +51,7 @@ def create_access_token(subject: str, org_id: Optional[str] = None, expires_delt
     return encoded_jwt
 
 
-def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
+def decode_access_token(token: str) -> dict[str, Any] | None:
     """Decode and validate JWT token."""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

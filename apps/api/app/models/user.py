@@ -1,11 +1,17 @@
 import uuid
 from datetime import datetime
-from typing import List, Optional
-from sqlalchemy import String, Boolean, ForeignKey, Text, JSON, DateTime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import Optional
+
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from apps.api.app.db.session import Base
-from apps.api.app.models.base import UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin
+from apps.api.app.models.base import (
+    SoftDeleteMixin,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+)
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
@@ -19,10 +25,10 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     
     # MFA
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    mfa_secret_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    mfa_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    memberships: Mapped[List["OrganizationMembership"]] = relationship("OrganizationMembership", back_populates="user", cascade="all, delete-orphan")
-    api_keys: Mapped[List["APIKey"]] = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
+    memberships: Mapped[list["OrganizationMembership"]] = relationship("OrganizationMembership", back_populates="user", cascade="all, delete-orphan")
+    api_keys: Mapped[list["APIKey"]] = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
 
 
 class Organization(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
@@ -31,23 +37,23 @@ class Organization(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     
-    memberships: Mapped[List["OrganizationMembership"]] = relationship("OrganizationMembership", back_populates="organization", cascade="all, delete-orphan")
-    projects: Mapped[List["Project"]] = relationship("Project", back_populates="organization", cascade="all, delete-orphan")
-    roles: Mapped[List["Role"]] = relationship("Role", back_populates="organization", cascade="all, delete-orphan")
-    service_identities: Mapped[List["ServiceIdentity"]] = relationship("ServiceIdentity", back_populates="organization", cascade="all, delete-orphan")
+    memberships: Mapped[list["OrganizationMembership"]] = relationship("OrganizationMembership", back_populates="organization", cascade="all, delete-orphan")
+    projects: Mapped[list["Project"]] = relationship("Project", back_populates="organization", cascade="all, delete-orphan")
+    roles: Mapped[list["Role"]] = relationship("Role", back_populates="organization", cascade="all, delete-orphan")
+    service_identities: Mapped[list["ServiceIdentity"]] = relationship("ServiceIdentity", back_populates="organization", cascade="all, delete-orphan")
 
 
 class Role(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "roles"
 
-    organization_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     slug: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     organization: Mapped[Optional["Organization"]] = relationship("Organization", back_populates="roles")
-    permissions: Mapped[List["Permission"]] = relationship("Permission", back_populates="role", cascade="all, delete-orphan")
+    permissions: Mapped[list["Permission"]] = relationship("Permission", back_populates="role", cascade="all, delete-orphan")
 
 
 class Permission(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -78,11 +84,11 @@ class Project(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     organization: Mapped["Organization"] = relationship("Organization", back_populates="projects")
-    environments: Mapped[List["Environment"]] = relationship("Environment", back_populates="project", cascade="all, delete-orphan")
-    memberships: Mapped[List["ProjectMembership"]] = relationship("ProjectMembership", back_populates="project", cascade="all, delete-orphan")
+    environments: Mapped[list["Environment"]] = relationship("Environment", back_populates="project", cascade="all, delete-orphan")
+    memberships: Mapped[list["ProjectMembership"]] = relationship("ProjectMembership", back_populates="project", cascade="all, delete-orphan")
 
 
 class Environment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -117,7 +123,7 @@ class APIKey(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     key_prefix: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     key_hash: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     scopes: Mapped[dict] = mapped_column(JSON, default=list, nullable=False)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="api_keys")
 
@@ -130,6 +136,6 @@ class ServiceIdentity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     token_prefix: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     token_hash: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     scopes: Mapped[dict] = mapped_column(JSON, default=list, nullable=False)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     organization: Mapped["Organization"] = relationship("Organization", back_populates="service_identities")

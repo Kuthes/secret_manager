@@ -1,11 +1,13 @@
+import csv
 import hashlib
+import io
 import json
 import uuid
-import csv
-import io
-from typing import Optional, Dict, Any, List, Tuple
-from sqlalchemy import select, desc, asc
+from typing import Any
+
+from sqlalchemy import asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from apps.api.app.models.audit import AuditEvent
 
 GENESIS_HASH = "GENESIS_HASH_000000000000000000000000000000000000000000000000000"  # 64 chars
@@ -16,13 +18,13 @@ class AuditService:
     def _compute_event_hash(
         prev_hash: str,
         org_id: str,
-        project_id: Optional[str],
+        project_id: str | None,
         actor_name: str,
         action: str,
         resource_type: str,
-        resource_id: Optional[str],
+        resource_id: str | None,
         result: str,
-        sanitized_meta: Dict[str, Any],
+        sanitized_meta: dict[str, Any],
     ) -> str:
         payload_to_hash = {
             "prev_hash": prev_hash,
@@ -43,16 +45,16 @@ class AuditService:
         organization_id: uuid.UUID,
         action: str,
         resource_type: str,
-        resource_id: Optional[str] = None,
-        project_id: Optional[uuid.UUID] = None,
-        actor_id: Optional[uuid.UUID] = None,
+        resource_id: str | None = None,
+        project_id: uuid.UUID | None = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
         actor_type: str = "user",
         result: str = "success",
-        request_id: Optional[str] = None,
-        source_ip: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        request_id: str | None = None,
+        source_ip: str | None = None,
+        user_agent: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> AuditEvent:
         """Create an append-only, tamper-evident audit event record."""
         stmt = (
@@ -106,7 +108,7 @@ class AuditService:
         return event
 
     @staticmethod
-    async def verify_chain(db: AsyncSession, organization_id: uuid.UUID) -> Dict[str, Any]:
+    async def verify_chain(db: AsyncSession, organization_id: uuid.UUID) -> dict[str, Any]:
         """Cryptographically verify the SHA-256 hash chain for an organization."""
         stmt = (
             select(AuditEvent)
@@ -179,6 +181,32 @@ class AuditService:
             for e in events:
                 writer.writerow([e.created_at.isoformat(), e.action, e.actor_name, e.actor_type, e.resource_type, e.resource_id, e.result, e.event_hash])
             return output.getvalue()
+        elif format_type == "jsonl":
+            lines = [
+                json.dumps({
+                    "id": str(e.id),
+                    "timestamp": e.created_at.isoformat(),
+                    "action": e.action,
+                    "actor_name": e.actor_name,
+                    "actor_type": e.actor_type,
+                    "resource_type": e.resource_type,
+                    "resource_id": e.resource_id,
+                    "result": e.result,
+                    "event_hash": e.event_hash,
+                    "prev_event_hash": e.prev_event_hash,
+                    "metadata": e.metadata_json,
+                })
+                for e in events
+            ]
+            return "\n".join(lines)
+        elif format_type == "syslog":
+            syslog_lines = []
+            for e in events:
+                meta_str = " ".join(f'{k}="{v}"' for k, v in (e.metadata_json or {}).items())
+                syslog_lines.append(
+                    f"<134>1 {e.created_at.isoformat()} aegisvault security-audit - - [aegis@32473 action=\"{e.action}\" actor=\"{e.actor_name}\" result=\"{e.result}\" resource=\"{e.resource_type}:{e.resource_id}\" hash=\"{e.event_hash}\" {meta_str}] Audit event recorded"
+                )
+            return "\n".join(syslog_lines)
         else:
             export_list = [
                 {

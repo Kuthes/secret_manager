@@ -28,7 +28,13 @@ type RevealResponse struct {
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: aegis-agent run --project <id> --environment <id> --api-url <url> -- <command>")
+		fmt.Println("       aegis-agent version")
 		os.Exit(1)
+	}
+
+	if os.Args[1] == "version" || os.Args[1] == "--version" || os.Args[1] == "-v" {
+		fmt.Println("aegis-agent version 1.0.0-rc1 (AegisVault Daemon Agent)")
+		return
 	}
 
 	runCmd := flag.NewFlagSet("run", flag.ExitOnError)

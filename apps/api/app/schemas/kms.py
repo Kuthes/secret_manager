@@ -1,14 +1,14 @@
 import uuid
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class KeyCreateRequest(BaseModel):
     name: str = Field(..., min_length=2)
     algorithm: str = "AES-256-GCM"  # "AES-256-GCM", "RSA-4096", "Ed25519"
     key_usage: str = "ENCRYPT_DECRYPT"  # "ENCRYPT_ONLY", "ENCRYPT_DECRYPT", "SIGN_VERIFY", "VERIFY_ONLY"
-    project_id: Optional[uuid.UUID] = None
+    project_id: uuid.UUID | None = None
 
 
 class KeyResponse(BaseModel):
@@ -20,7 +20,7 @@ class KeyResponse(BaseModel):
     key_usage: str
     version: int
     status: str
-    public_key_pem: Optional[str] = None
+    public_key_pem: str | None = None
     created_at: datetime
 
 
@@ -32,13 +32,13 @@ class EncryptResponse(BaseModel):
     key_id: uuid.UUID
     key_version: int
     ciphertext: str
-    nonce: Optional[str] = None
+    nonce: str | None = None
 
 
 class DecryptRequest(BaseModel):
     ciphertext: str
-    nonce: Optional[str] = None
-    version: Optional[int] = None
+    nonce: str | None = None
+    version: int | None = None
 
 
 class DecryptResponse(BaseModel):
@@ -59,7 +59,7 @@ class SignResponse(BaseModel):
 class VerifyRequest(BaseModel):
     message: str = Field(..., description="Plaintext message that was signed")
     signature: str = Field(..., description="Base64 encoded signature")
-    version: Optional[int] = None
+    version: int | None = None
 
 
 class VerifyResponse(BaseModel):

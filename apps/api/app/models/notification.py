@@ -1,11 +1,12 @@
 import uuid
 from datetime import datetime
-from typing import Optional
-from sqlalchemy import String, ForeignKey, Text, Boolean, DateTime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
 from apps.api.app.db.session import Base
-from apps.api.app.models.base import UUIDPrimaryKeyMixin, TimestampMixin
+from apps.api.app.models.base import TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class AlertRule(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -15,7 +16,7 @@ class AlertRule(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)  # "cert_expiring", "rotation_failed", "access_requested", "scan_leak_found"
     channel_type: Mapped[str] = mapped_column(String(32), default="in_app", nullable=False)  # "in_app", "email", "webhook", "slack"
-    channel_config_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    channel_config_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
@@ -27,4 +28,4 @@ class Notification(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     severity: Mapped[str] = mapped_column(String(32), default="info", nullable=False)  # "info", "warning", "critical"
-    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

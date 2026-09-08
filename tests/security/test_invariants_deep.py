@@ -1,20 +1,17 @@
-import os
-import time
-import base64
 import pytest
-import pytest_asyncio
-import uuid
-from datetime import datetime, timezone
-from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from apps.api.app.core.crypto import crypto_engine
+from apps.api.app.core.ssrf import SSRFProtectionError, validate_safe_url
 from apps.api.app.db.session import Base
-from apps.api.app.core.crypto import crypto_engine, CryptoError
-from apps.api.app.core.ssrf import validate_safe_url, SSRFProtectionError
-from apps.api.app.services.auth_service import get_totp_token, verify_totp_token, generate_totp_secret
-from apps.api.app.services.scanner_service import scanner_service
-from apps.api.app.services.audit_service import audit_service
 from apps.api.app.models.user import Organization
+from apps.api.app.services.audit_service import audit_service
+from apps.api.app.services.auth_service import (
+    generate_totp_secret,
+    get_totp_token,
+    verify_totp_token,
+)
+from apps.api.app.services.scanner_service import scanner_service
 
 
 def test_empty_secret_payload_encryption():

@@ -1,8 +1,8 @@
 import abc
 import base64
 import os
-import json
-from typing import Dict, Any, Tuple, Optional
+from typing import Any
+
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
@@ -10,29 +10,25 @@ class KMSProvider(abc.ABC):
     """Abstract external root-of-trust provider for wrapping/unwrapping key material."""
 
     @abc.abstractmethod
-    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: Optional[str] = None) -> Tuple[bytes, bytes, str, int]:
+    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: str | None = None) -> tuple[bytes, bytes, str, int]:
         """
         Wraps key material with the active MEK.
         Returns: (wrapped_key_bytes, nonce_bytes, mek_id, mek_version)
         """
-        pass
 
     @abc.abstractmethod
     def unwrap_key(self, wrapped_key: bytes, nonce: bytes, aad: bytes, mek_id: str, mek_version: int) -> bytes:
         """
         Unwraps key material using the specified MEK version.
         """
-        pass
 
     @abc.abstractmethod
     def health_check(self) -> bool:
         """Verifies connectivity/availability of root-of-trust provider."""
-        pass
 
     @abc.abstractmethod
-    def provider_metadata(self) -> Dict[str, Any]:
+    def provider_metadata(self) -> dict[str, Any]:
         """Returns public metadata about provider capabilities and configuration."""
-        pass
 
 
 class LocalKMSProvider(KMSProvider):
@@ -42,7 +38,7 @@ class LocalKMSProvider(KMSProvider):
     """
 
     def __init__(self, initial_key_b64: str, initial_mek_id: str = "mek-v1"):
-        self.keys: Dict[str, Dict[int, Dict[str, Any]]] = {}
+        self.keys: dict[str, dict[int, dict[str, Any]]] = {}
         self.active_mek_id = initial_mek_id
         self.active_version = 1
 
@@ -73,7 +69,7 @@ class LocalKMSProvider(KMSProvider):
             self.active_mek_id = mek_id
             self.active_version = version
 
-    def rotate_key(self, new_mek_id: str, new_key_b64: str) -> Tuple[str, int]:
+    def rotate_key(self, new_mek_id: str, new_key_b64: str) -> tuple[str, int]:
         """Rotates MEK: demotes current active key to DecryptOnly and activates new key."""
         if self.active_mek_id in self.keys and self.active_version in self.keys[self.active_mek_id]:
             self.keys[self.active_mek_id][self.active_version]["status"] = "DecryptOnly"
@@ -83,7 +79,7 @@ class LocalKMSProvider(KMSProvider):
         self.register_key(new_mek_id, new_version, new_key_bytes, status="Active")
         return new_mek_id, new_version
 
-    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: Optional[str] = None) -> Tuple[bytes, bytes, str, int]:
+    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: str | None = None) -> tuple[bytes, bytes, str, int]:
         mek_id = key_id or self.active_mek_id
         version = self.active_version
         key_entry = self.keys.get(mek_id, {}).get(version)
@@ -106,7 +102,7 @@ class LocalKMSProvider(KMSProvider):
     def health_check(self) -> bool:
         return bool(self.active_mek_id in self.keys and self.active_version in self.keys[self.active_mek_id])
 
-    def provider_metadata(self) -> Dict[str, Any]:
+    def provider_metadata(self) -> dict[str, Any]:
         return {
             "provider_type": "local",
             "active_mek_id": self.active_mek_id,
@@ -121,12 +117,12 @@ class AWSKMSProvider(KMSProvider):
     with IAM role / Workload Identity support (boto3 / pure HTTP).
     """
 
-    def __init__(self, key_arn: str, region: str = "us-east-1", fallback_local: Optional[LocalKMSProvider] = None):
+    def __init__(self, key_arn: str, region: str = "us-east-1", fallback_local: LocalKMSProvider | None = None):
         self.key_arn = key_arn
         self.region = region
         self.fallback_local = fallback_local
 
-    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: Optional[str] = None) -> Tuple[bytes, bytes, str, int]:
+    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: str | None = None) -> tuple[bytes, bytes, str, int]:
         # Production AWS KMS Encrypt call with EncryptionContext
         if self.fallback_local:
             return self.fallback_local.wrap_key(plaintext_key, aad, key_id)
@@ -144,7 +140,7 @@ class AWSKMSProvider(KMSProvider):
     def health_check(self) -> bool:
         return bool(self.key_arn)
 
-    def provider_metadata(self) -> Dict[str, Any]:
+    def provider_metadata(self) -> dict[str, Any]:
         return {
             "provider_type": "aws_kms",
             "region": self.region,
@@ -159,7 +155,7 @@ class AzureKeyVaultProvider(KMSProvider):
         self.vault_url = vault_url
         self.key_name = key_name
 
-    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: Optional[str] = None) -> Tuple[bytes, bytes, str, int]:
+    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: str | None = None) -> tuple[bytes, bytes, str, int]:
         raise NotImplementedError("Azure Key Vault provider requires azure-keyvault-keys configured.")
 
     def unwrap_key(self, wrapped_key: bytes, nonce: bytes, aad: bytes, mek_id: str, mek_version: int) -> bytes:
@@ -168,7 +164,7 @@ class AzureKeyVaultProvider(KMSProvider):
     def health_check(self) -> bool:
         return bool(self.vault_url and self.key_name)
 
-    def provider_metadata(self) -> Dict[str, Any]:
+    def provider_metadata(self) -> dict[str, Any]:
         return {"provider_type": "azure_key_vault", "vault_url": self.vault_url, "key_name": self.key_name}
 
 
@@ -180,7 +176,7 @@ class GCPKMSProvider(KMSProvider):
         self.crypto_key_id = crypto_key_id
         self.location = location
 
-    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: Optional[str] = None) -> Tuple[bytes, bytes, str, int]:
+    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: str | None = None) -> tuple[bytes, bytes, str, int]:
         raise NotImplementedError("GCP KMS provider requires google-cloud-kms configured.")
 
     def unwrap_key(self, wrapped_key: bytes, nonce: bytes, aad: bytes, mek_id: str, mek_version: int) -> bytes:
@@ -189,7 +185,7 @@ class GCPKMSProvider(KMSProvider):
     def health_check(self) -> bool:
         return bool(self.key_ring_id and self.crypto_key_id)
 
-    def provider_metadata(self) -> Dict[str, Any]:
+    def provider_metadata(self) -> dict[str, Any]:
         return {"provider_type": "gcp_kms", "key_ring_id": self.key_ring_id, "crypto_key_id": self.crypto_key_id}
 
 
@@ -200,7 +196,7 @@ class PKCS11Provider(KMSProvider):
         self.module_path = module_path
         self.token_label = token_label
 
-    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: Optional[str] = None) -> Tuple[bytes, bytes, str, int]:
+    def wrap_key(self, plaintext_key: bytes, aad: bytes, key_id: str | None = None) -> tuple[bytes, bytes, str, int]:
         raise NotImplementedError("PKCS#11 provider requires PyKCS11 and HSM module library.")
 
     def unwrap_key(self, wrapped_key: bytes, nonce: bytes, aad: bytes, mek_id: str, mek_version: int) -> bytes:
@@ -209,5 +205,5 @@ class PKCS11Provider(KMSProvider):
     def health_check(self) -> bool:
         return bool(self.module_path and os.path.exists(self.module_path))
 
-    def provider_metadata(self) -> Dict[str, Any]:
+    def provider_metadata(self) -> dict[str, Any]:
         return {"provider_type": "pkcs11", "module_path": self.module_path, "token_label": self.token_label}

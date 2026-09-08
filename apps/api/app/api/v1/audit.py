@@ -1,23 +1,23 @@
 import uuid
-from typing import List, Optional
+
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import select, and_, desc
+from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.app.api.deps import get_current_org, require_permission
 from apps.api.app.db.session import get_db
 from apps.api.app.models.audit import AuditEvent
 from apps.api.app.models.user import Organization
 from apps.api.app.schemas.audit import AuditEventResponse
 from apps.api.app.services.audit_service import audit_service
-from apps.api.app.api.deps import get_current_org, require_permission
 
 router = APIRouter(prefix="/audit", tags=["Audit Log"])
 
 
-@router.get("/events", response_model=List[AuditEventResponse], dependencies=[Depends(require_permission("audit:read"))])
+@router.get("/events", response_model=list[AuditEventResponse], dependencies=[Depends(require_permission("audit:read"))])
 async def list_audit_events(
-    project_id: Optional[uuid.UUID] = Query(None),
-    action: Optional[str] = Query(None),
+    project_id: uuid.UUID | None = Query(None),
+    action: str | None = Query(None),
     limit: int = Query(50, le=200),
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -33,7 +33,7 @@ async def list_audit_events(
     return res.scalars().all()
 
 
-@router.post("/verify", dependencies=[Depends(require_permission("audit:read"))])
+@router.api_route("/verify", methods=["GET", "POST"], dependencies=[Depends(require_permission("audit:read"))])
 async def verify_audit_chain(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -45,13 +45,18 @@ async def verify_audit_chain(
 
 @router.get("/export", dependencies=[Depends(require_permission("audit:export"))])
 async def export_audit_events(
-    format: str = Query("json", pattern="^(json|csv)$"),
+    format: str = Query("json", pattern="^(json|jsonl|csv|syslog)$"),
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
 ):
-    """Export sanitized, tamper-evident audit logs in JSON or CSV format."""
+    """Export sanitized, tamper-evident audit logs in JSON, JSONL, CSV, or Syslog format."""
     content = await audit_service.export_events(db=db, organization_id=org.id, format_type=format)
-    media_type = "text/csv" if format == "csv" else "application/json"
+    if format == "csv":
+        media_type = "text/csv"
+    elif format in ["jsonl", "syslog"]:
+        media_type = "text/plain"
+    else:
+        media_type = "application/json"
     filename = f"audit-export-{org.slug}.{format}"
     return Response(
         content=content,

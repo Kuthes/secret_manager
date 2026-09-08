@@ -6,15 +6,27 @@ import secrets
 import struct
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple, List, Dict, Any
-from sqlalchemy import select, and_
+from datetime import timedelta
+
+from fastapi import HTTPException, status
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status
 
-from apps.api.app.core.security import get_password_hash, verify_password, create_access_token, decode_access_token
-from apps.api.app.models.user import User, Organization, OrganizationMembership, Role, ServiceIdentity
+import jwt
+from apps.api.app.core.config import settings
+from apps.api.app.core.security import (
+    create_access_token,
+    get_password_hash,
+    verify_password,
+)
+from apps.api.app.models.user import (
+    Organization,
+    OrganizationMembership,
+    Role,
+    ServiceIdentity,
+    User,
+)
 from apps.api.app.services.audit_service import audit_service
 
 
@@ -57,8 +69,8 @@ class AuthService:
         email: str,
         password: str,
         full_name: str,
-        org_name: Optional[str] = None,
-    ) -> Tuple[User, Organization, str]:
+        org_name: str | None = None,
+    ) -> tuple[User, Organization, str]:
         # Check existing user
         stmt = select(User).where(User.email == email.lower().strip())
         res = await db.execute(stmt)
@@ -125,8 +137,8 @@ class AuthService:
         db: AsyncSession,
         email: str,
         password: str,
-        mfa_code: Optional[str] = None,
-    ) -> Tuple[User, Organization, str]:
+        mfa_code: str | None = None,
+    ) -> tuple[User, Organization, str]:
         stmt = (
             select(User)
             .options(
@@ -177,7 +189,7 @@ class AuthService:
         return user, org, token
 
     @staticmethod
-    async def setup_mfa(db: AsyncSession, user: User) -> Tuple[str, str, List[str]]:
+    async def setup_mfa(db: AsyncSession, user: User) -> tuple[str, str, list[str]]:
         secret = generate_totp_secret()
         # Save secret to user
         user.mfa_secret_encrypted = secret
@@ -217,7 +229,7 @@ class AuthService:
         db: AsyncSession,
         client_id: str,
         client_secret: str,
-    ) -> Tuple[ServiceIdentity, str]:
+    ) -> tuple[ServiceIdentity, str]:
         prefix = client_id[:8]
         key_hash = hashlib.sha256(client_secret.encode("utf-8")).hexdigest()
 
@@ -281,6 +293,70 @@ class AuthService:
         )
 
         return token
+
+    @staticmethod
+    async def authenticate_jwt_oidc_machine(
+        db: AsyncSession,
+        org_id: uuid.UUID,
+        jwt_token: str,
+        expected_issuer: str | None = None,
+        expected_audience: str | None = None,
+        verification_key: str = settings.SECRET_KEY,
+    ) -> str:
+        """
+        Validates external OIDC/JWT machine identity token.
+        Rejects unsigned tokens and alg=none.
+        """
+        if not jwt_token or jwt_token.count(".") != 2:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Malformed JWT token structure.")
+
+        try:
+            unverified_header = jwt.get_unverified_header(jwt_token)
+            if unverified_header.get("alg", "").lower() in ["none", ""]:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Insecure algorithm 'none' is strictly rejected.")
+
+            decode_options = {
+                "verify_exp": True,
+                "verify_signature": True,
+                "verify_aud": bool(expected_audience),
+            }
+            payload = jwt.decode(
+                jwt_token,
+                verification_key,
+                algorithms=["HS256", "RS256"],
+                audience=expected_audience,
+                options=decode_options,
+            )
+
+            if expected_issuer and payload.get("iss") != expected_issuer:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"JWT issuer mismatch: expected '{expected_issuer}'.")
+
+            if expected_audience and payload.get("aud") != expected_audience:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"JWT audience mismatch: expected '{expected_audience}'.")
+
+            sub = payload.get("sub", "oidc-workload")
+            token = create_access_token(
+                subject=f"oidc:{sub}",
+                org_id=str(org_id),
+                expires_delta=timedelta(hours=1),
+                extra_claims={"kind": "machine", "name": str(sub), "role": "developer"},
+            )
+
+            await audit_service.log_event(
+                db=db,
+                organization_id=org_id,
+                actor_name=f"oidc:{sub}",
+                actor_type="service_identity",
+                action="auth.oidc_login",
+                resource_type="service_identity",
+                metadata={"sub": sub, "iss": payload.get("iss")},
+            )
+
+            return token
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid or expired JWT token: {str(e)}") from e
 
 
 auth_service = AuthService()

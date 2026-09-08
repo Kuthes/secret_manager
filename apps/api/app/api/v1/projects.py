@@ -1,14 +1,20 @@
 import uuid
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, and_
+
+from fastapi import APIRouter, Depends, status
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from apps.api.app.api.deps import get_current_org, get_current_user, require_permission
+from apps.api.app.api.loaders import get_owned_project
 from apps.api.app.db.session import get_db
-from apps.api.app.models.user import Organization, Project, Environment, User
-from apps.api.app.schemas.project import OrganizationResponse, ProjectCreate, ProjectResponse, EnvironmentResponse
-from apps.api.app.api.deps import get_current_user, get_current_org, require_permission
+from apps.api.app.models.user import Environment, Organization, Project, User
+from apps.api.app.schemas.project import (
+    EnvironmentResponse,
+    OrganizationResponse,
+    ProjectCreate,
+    ProjectResponse,
+)
 
 router = APIRouter(tags=["Projects & Tenancy"])
 
@@ -18,7 +24,7 @@ async def get_current_organization(org: Organization = Depends(get_current_org))
     return org
 
 
-@router.get("/projects", response_model=List[ProjectResponse], dependencies=[Depends(require_permission("project:list"))])
+@router.get("/projects", response_model=list[ProjectResponse], dependencies=[Depends(require_permission("project:list"))])
 async def list_projects(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -62,17 +68,15 @@ async def create_project(
     return res.scalar_one()
 
 
-@router.get("/projects/{project_id}/environments", response_model=List[EnvironmentResponse], dependencies=[Depends(require_permission("project:read"))])
+@router.get("/projects/{project_id}/environments", response_model=list[EnvironmentResponse], dependencies=[Depends(require_permission("project:read"))])
 async def list_environments(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
 ):
-    # Strict tenant check
-    project = await db.get(Project, project_id)
-    if not project or project.is_deleted or project.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    # Strict tenant check via loader
+    project = await get_owned_project(db=db, project_id=project_id, organization_id=org.id)
 
-    stmt = select(Environment).where(Environment.project_id == project_id).order_by(Environment.position)
+    stmt = select(Environment).where(Environment.project_id == project.id).order_by(Environment.position)
     res = await db.execute(stmt)
     return res.scalars().all()

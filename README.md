@@ -1,92 +1,53 @@
-# AegisVault — Enterprise Security & Secrets Management Platform
+# AegisVault — Enterprise Identity & Security Control Plane
 
-AegisVault is a production-grade, self-hosted, open-source secret management and security control plane platform (AWS Secrets Manager / HashiCorp Vault / Infisical / Smallstep class).
+[![Security Review](https://img.shields.io/badge/Security%20Audit-Verified-brightgreen.svg)](docs/SECURITY_AUDIT.md)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](apps/api)
+[![Next.js 15](https://img.shields.io/badge/Next.js-15.0-black.svg)](apps/web)
+[![Go CLI & Agent](https://img.shields.io/badge/Go-1.22%2B-00ADD8.svg)](packages/cli)
 
----
-
-## Architecture Overview
-
-```text
-aegisvault/
-├── apps/
-│   ├── web/                    # Next.js 15 & React 19 UI Dashboard
-│   ├── api/                    # FastAPI Backend (Python 3.12, Async SQLAlchemy 2.0)
-│   ├── worker/                 # Celery Asynchronous Workers
-│   └── agent/                  # Go Secret Injection Agent (aegis-agent)
-├── packages/
-│   ├── cli/                    # Go CLI tool (av)
-│   └── shared-types/           # Shared schemas and validation
-├── integrations/
-│   ├── github/                 # GitHub Actions secret sync connector
-│   ├── vercel/                 # Vercel environment variables sync connector
-│   ├── aws/                    # AWS Secrets Manager sync connector
-│   └── kubernetes/             # Kubernetes Secret sync operator
-├── deploy/
-│   ├── docker/                 # Production Dockerfiles
-│   └── kubernetes/             # Manifests & Helm charts
-├── docs/                       # Architecture, Threat Model, Implementation Status
-└── tests/                      # Unit, Integration, and Security Test Suites
-```
+AegisVault is an enterprise-grade, self-hostable identity security, secret management, and cryptographic control plane platform designed for cloud infrastructure and autonomous AI agent workloads.
 
 ---
 
-## Key Features
+## 🏛 Platform Pillars
 
-1. **Envelope Encryption Core**:
-   - AES-256-GCM authenticated payload encryption.
-   - Distinct 32-byte ephemeral Data Encryption Keys (DEKs) per secret version.
-   - Master Key Encryption Keys (MEKs) with versioning and re-wrapping support.
-   - Authenticated Additional Data (AAD) cryptographically binding Organization ID, Project ID, Environment ID, Secret Key, and Version.
-2. **Immutable Secret Versioning & Rollback**:
-   - Every creation and update generates an immutable version record with actor telemetry.
-   - Point-in-time rollback restores historical versions without overwriting audit history.
-3. **Private PKI & Certificate Authority**:
-   - Generates Root and Intermediate CAs.
-   - Issues leaf X.509 certificates with SAN DNS names.
-   - Manages certificate revocation and automated CRL generation.
-4. **Software KMS**:
-   - Symmetric AES-256-GCM encryption/decryption.
-   - Asymmetric RSA-4096 and Ed25519 signing and verification.
-   - Strict audit telemetry for every cryptographic operation.
-5. **Privileged Access Management (PAM)**:
-   - Time-bound access requests with required justifications and reviewer workflows.
-   - Automatic lease expiration and early revocation.
-6. **Automated Secret Rotation & Dynamic Credentials**:
-   - Scheduled rotations via Celery Beat with Redis distributed locking.
-   - Ephemeral database credentials with automatic lease cleanup.
-7. **Secret Scanner**:
-   - Real-time detection of leaked API keys, tokens, and private keys.
-   - Generates SHA-256 fingerprints and redacted previews without storing plaintext leaks.
-8. **Multi-Target Secret Delivery**:
-   - Live connectors for GitHub Actions, Vercel, AWS Secrets Manager, and Kubernetes Secrets.
-   - Lightweight Go runtime injection agent (`aegis-agent`).
+| Pillar | Capabilities |
+|---|---|
+| **🔒 Secrets Management & Approval Workflows** | Envelope AES-256-GCM encryption, per-secret DEKs, deterministic AAD, PR-style change requests with dual-authorization (four-eyes principle), point-in-time versioning & rollback. |
+| **🤖 AI Agent Proxy & Scoping Engine** | Ephemeral agent sessions, in-memory secret substitution (`{{ aegis:secret:<KEY> }}`), tool and domain allowlists, and anti-SSRF protection — agents never see plaintext credentials in prompt context. |
+| **🔑 Machine Identity Gateways** | Universal Auth (client credentials), Kubernetes Service Account Auth (projected pod tokens), and OIDC/JWT machine identity exchange with auto-renewing access tokens. |
+| **⚡ Dynamic Secrets Engine** | On-demand, short-lived ephemeral credentials with automatic TTL revocation across PostgreSQL, MySQL, Redis, AWS IAM, MongoDB, and HashiCorp Vault. |
+| **📜 Private PKI & Certificate Authority** | Root and Intermediate CAs, leaf X.509 certificate issuance with SANs, automated CRL generation, and revocation controls. |
+| **🛡 Software KMS** | Envelope DEK wrapping, AES-256-GCM symmetric encryption, and asymmetric RSA-4096 / Ed25519 signing and verification. |
+| **⏱ Privileged Access Management (PAM)** | Time-bound access leases with mandatory justification, dual-authorization review, early revocation, and automated lease reclamation. |
+| **🔍 Secret Scanner & Audit Hash Chains** | Real-time credential leak detection in codebases, SHA-256 fingerprinting, and tamper-evident cryptographic audit logs. |
 
 ---
 
-## Quick Start (Local Development)
+## 🚀 Quick Start
 
-### 1. One-Command Setup with Docker Compose
+### 1. Run Production Stack with Docker Compose
 
 ```bash
-# 1. Clone & enter repository
-cd aegisvault-security-full-source
+# Clone the repository
+git clone git@github.com:Kuthes/secret_manager.git aegisvault
+cd aegisvault
 
-# 2. Copy environment template
+# Copy environment configuration
 cp .env.example .env
 
-# 3. Start all services
-docker compose up --build -d
+# Launch all services (PostgreSQL 16, Redis 7, FastAPI API, Celery Workers, Next.js Web Console)
+docker compose -f docker-compose.production.yml up --build -d
 ```
 
 ### 2. Access the Platform
 
-- **Web Dashboard**: [http://localhost:3000](http://localhost:3000) (or dev server at [http://localhost:5173](http://localhost:5173))
-- **FastAPI Interactive Swagger Docs**: [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
-- **Mailpit Webmail (Alerts & Emails)**: [http://localhost:8025](http://localhost:8025)
+- **Web Dashboard**: [http://localhost:3000](http://localhost:3000)
+- **Interactive Swagger Docs**: [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
+- **Mailpit Email / Alert Console**: [http://localhost:8025](http://localhost:8025)
 
----
-
-## Demo Credentials (When `DEMO_MODE=true`)
+### 3. Demo Credentials (when `DEMO_MODE=true`)
 
 | Parameter | Value |
 |---|---|
@@ -94,43 +55,98 @@ docker compose up --build -d
 | **Password** | `AegisDemo2026!` |
 | **Organization** | `Acme Cloud` |
 | **Project** | `Payments API` |
-| **Environments** | `development`, `staging`, `production` |
 
 ---
 
-## Running the Test Suite
+## 📦 Developer SDKs & CLI
 
-```bash
-# Run backend unit, envelope crypto, and API integration tests
-PYTHONPATH=. ./apps/api/.venv/bin/pytest tests/test_crypto_and_api.py tests/test_api_integration.py
+### Python SDK (`sdk/python`)
 
-# Run frontend SSR and component test suite
-npm test
+```python
+from sdk.python.aegisvault import AegisVaultClient
 
-# Run code style and accessibility linter
-npm run lint
+client = AegisVaultClient(
+    base_url="http://localhost:8000",
+    api_key="aegis_sec_...",
+    project_id="PROJ_UUID",
+    environment_id="ENV_UUID",
+    cache_ttl_seconds=300,  # In-memory TTL caching with auto-fallback
+)
+
+# Fetch decrypted secret value
+db_url = client.get_secret("DATABASE_URL", justification="Worker startup")
 ```
 
----
-
-## CLI (`av`) Usage
+### Go CLI (`av`)
 
 ```bash
 # Authenticate
 av login demo@aegisvault.local AegisDemo2026!
 
-# List projects
-av projects list
-
-# Scan local directory for secrets
+# Scan local repository for leaked secrets
 av scan .
 
-# Run application with injected secrets
+# Run process with injected environment variables
 av run -- npm start
 ```
 
 ---
 
-## License
+## 🤖 AI Agent Proxy Example
+
+Autonomous AI agents invoke external tools without ever holding raw secrets:
+
+```bash
+# Outbound tool call via AegisVault Agent Proxy
+curl -X POST http://localhost:8000/api/v1/agents/proxy \
+  -H "Authorization: Bearer aegis_ag_sess_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool_name": "stripe.charge",
+    "url": "https://api.stripe.com/v1/charges",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer {{ aegis:secret:STRIPE_API_KEY }}",
+      "Content-Type": "application/json"
+    },
+    "body": {"amount": 5000, "currency": "usd"}
+  }'
+```
+
+*The proxy resolves `{{ aegis:secret:STRIPE_API_KEY }}` in-memory right before the TLS handshake and audits the request metadata.*
+
+---
+
+## 🧪 Testing & Verification
+
+Run the full security and regression test suite (150+ tests):
+
+```bash
+# Run complete test suite
+PYTHONPATH=.:sdk/python pytest tests/ -v
+
+# Run AI Agent Proxy security suite
+PYTHONPATH=.:sdk/python pytest tests/security/test_agent_proxy_security.py -v
+
+# Run Secrets Approval Workflows suite
+PYTHONPATH=.:sdk/python pytest tests/security/test_secrets_approval_workflows.py -v
+
+# Run Machine Identity & Auth suite
+PYTHONPATH=.:sdk/python pytest tests/security/test_machine_identity.py -v
+```
+
+---
+
+## 📖 Documentation
+
+- [📘 Comprehensive Usage Guide](docs/USAGE_GUIDE.md)
+- [📋 Product & Technical Requirements Document (PRD & TRD)](docs/PRD_TRD.md)
+- [🔐 Key Hierarchy & Cryptographic Architecture](docs/KEY_HIERARCHY.md)
+- [🛡 Security Remediation Report](docs/SECURITY_REMEDIATION_REPORT.md)
+- [💾 Backup & Disaster Recovery Runbook](docs/BACKUP_RESTORE.md)
+
+---
+
+## 📄 License
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.

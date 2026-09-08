@@ -1,13 +1,12 @@
 import json
+
 import pytest
 import pytest_asyncio
-import uuid
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from apps.api.app.db.session import Base
 from apps.api.app.models.user import Organization
-from apps.api.app.models.audit import AuditEvent
-from apps.api.app.services.audit_service import audit_service, GENESIS_HASH
+from apps.api.app.services.audit_service import GENESIS_HASH, audit_service
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -166,3 +165,13 @@ async def test_audit_log_export(audit_env):
         csv_export = await audit_service.export_events(db=db, organization_id=t["org"].id, format_type="csv")
         assert "timestamp,action,actor_name" in csv_export
         assert "export.test" in csv_export
+
+        # JSONL Export
+        jsonl_export = await audit_service.export_events(db=db, organization_id=t["org"].id, format_type="jsonl")
+        assert "export.test" in jsonl_export
+        assert json.loads(jsonl_export.splitlines()[0])["action"] == "export.test"
+
+        # Syslog Export
+        syslog_export = await audit_service.export_events(db=db, organization_id=t["org"].id, format_type="syslog")
+        assert "aegisvault security-audit" in syslog_export
+        assert 'action="export.test"' in syslog_export

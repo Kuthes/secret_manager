@@ -1,14 +1,13 @@
+
 import pytest
 import pytest_asyncio
-import uuid
 from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from apps.api.app.db.session import Base
-from apps.api.app.models.user import User, Organization, Role, OrganizationMembership
-from apps.api.app.models.kms import ManagedKey
-from apps.api.app.services.kms_service import kms_service
 from apps.api.app.core.security import get_password_hash
+from apps.api.app.db.session import Base
+from apps.api.app.models.user import Organization, OrganizationMembership, Role, User
+from apps.api.app.services.kms_service import kms_service
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DynamicProviderCreate(BaseModel):
@@ -11,7 +12,7 @@ class DynamicProviderCreate(BaseModel):
     environment_id: uuid.UUID
     default_ttl_seconds: int = 3600
     max_ttl_seconds: int = 86400
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 class DynamicProviderResponse(BaseModel):
@@ -28,7 +29,7 @@ class DynamicProviderResponse(BaseModel):
 
 
 class LeaseIssueRequest(BaseModel):
-    ttl_seconds: Optional[int] = None
+    ttl_seconds: int | None = None
 
 
 class LeaseResponse(BaseModel):
@@ -37,7 +38,7 @@ class LeaseResponse(BaseModel):
     id: uuid.UUID
     provider_id: uuid.UUID
     issued_identity: str
-    credentials: Optional[Dict[str, Any]] = None
+    credentials: dict[str, Any] | None = None
     ttl_seconds: int
     expires_at: datetime
     status: str

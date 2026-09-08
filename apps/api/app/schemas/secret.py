@@ -1,21 +1,21 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SecretCreate(BaseModel):
     key: str = Field(..., min_length=1, max_length=255)
     value: str = Field(..., min_length=1)
     path: str = Field(default="/", max_length=500)
-    comment: Optional[str] = None
-    rotation_interval_days: Optional[int] = None
+    comment: str | None = None
+    rotation_interval_days: int | None = None
 
 
 class SecretUpdate(BaseModel):
     value: str = Field(..., min_length=1)
-    comment: Optional[str] = None
-    change_message: Optional[str] = None
+    comment: str | None = None
+    change_message: str | None = None
 
 
 class SecretResponse(BaseModel):
@@ -26,11 +26,11 @@ class SecretResponse(BaseModel):
     environment_id: uuid.UUID
     key: str
     path: str
-    comment: Optional[str] = None
+    comment: str | None = None
     current_version: int
     updated_at: datetime
-    last_actor_name: Optional[str] = None
-    rotation_interval: Optional[str] = None
+    last_actor_name: str | None = None
+    rotation_interval: str | None = None
 
 
 class SecretRevealResponse(BaseModel):
@@ -49,14 +49,14 @@ class SecretVersionResponse(BaseModel):
     id: uuid.UUID
     version: int
     change_type: str
-    change_message: Optional[str] = None
-    actor_name: Optional[str] = None
+    change_message: str | None = None
+    actor_name: str | None = None
     created_at: datetime
 
 
 class RollbackRequest(BaseModel):
     target_version: int = Field(..., ge=1)
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 class RotationCreate(BaseModel):
@@ -73,5 +73,5 @@ class RotationResponse(BaseModel):
     provider_type: str
     interval_seconds: int
     next_run_at: datetime
-    last_run_at: Optional[datetime] = None
+    last_run_at: datetime | None = None
     status: str

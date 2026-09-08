@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CACreateRequest(BaseModel):
@@ -10,7 +10,7 @@ class CACreateRequest(BaseModel):
     ca_type: str = "root"  # "root" or "intermediate"
     key_algorithm: str = "RSA-4096"
     validity_days: int = 3650
-    parent_ca_id: Optional[uuid.UUID] = None
+    parent_ca_id: uuid.UUID | None = None
 
 
 class CAResponse(BaseModel):
@@ -30,7 +30,7 @@ class CAResponse(BaseModel):
 class CertIssueRequest(BaseModel):
     ca_id: uuid.UUID
     common_name: str
-    san_dns_names: List[str] = []
+    san_dns_names: list[str] = []
     validity_days: int = 90
     key_algorithm: str = "RSA-2048"
 
@@ -42,13 +42,13 @@ class CertResponse(BaseModel):
     ca_id: uuid.UUID
     serial_number: str
     common_name: str
-    san_dns_names: List[str]
+    san_dns_names: list[str]
     cert_pem: str
-    private_key_pem: Optional[str] = None
+    private_key_pem: str | None = None
     valid_from: datetime
     valid_to: datetime
     status: str
-    revoked_at: Optional[datetime] = None
+    revoked_at: datetime | None = None
 
 
 class CertRevokeRequest(BaseModel):

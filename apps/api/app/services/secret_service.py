@@ -1,13 +1,13 @@
 import hashlib
 import uuid
-from typing import List, Optional, Tuple
-from sqlalchemy import select, and_, desc
+
+from fastapi import HTTPException, status
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status
 
 from apps.api.app.core.crypto import crypto_engine
-from apps.api.app.models.secret import Secret, SecretVersion, SecretFolder
+from apps.api.app.models.secret import Secret, SecretVersion
 from apps.api.app.models.user import Project
 from apps.api.app.services.audit_service import audit_service
 
@@ -21,10 +21,10 @@ class SecretService:
         key: str,
         value: str,
         path: str = "/",
-        comment: Optional[str] = None,
-        actor_id: Optional[uuid.UUID] = None,
+        comment: str | None = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
-        rotation_interval_days: Optional[int] = None,
+        rotation_interval_days: int | None = None,
     ) -> Secret:
         # 1. Fetch project to verify and get organization_id
         project = await db.get(Project, project_id)
@@ -110,10 +110,10 @@ class SecretService:
     async def reveal_secret(
         db: AsyncSession,
         secret_id: uuid.UUID,
-        actor_id: Optional[uuid.UUID] = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
-        justification: Optional[str] = None,
-    ) -> Tuple[Secret, str]:
+        justification: str | None = None,
+    ) -> tuple[Secret, str]:
         """Decrypts and returns secret value. Generates high-priority audit event."""
         stmt = (
             select(Secret)
@@ -122,11 +122,21 @@ class SecretService:
         )
         res = await db.execute(stmt)
         secret = res.scalar_one_or_none()
-        if not secret or not secret.versions:
+        if not secret:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found")
 
         project = await db.get(Project, secret.project_id)
-        latest_version = secret.versions[0]  # sorted desc by version
+        
+        stmt_ver = select(SecretVersion).where(
+            SecretVersion.secret_id == secret.id,
+            SecretVersion.version == secret.current_version_num,
+        )
+        res_ver = await db.execute(stmt_ver)
+        latest_version = res_ver.scalar_one_or_none()
+        if not latest_version:
+            latest_version = secret.versions[0] if secret.versions else None
+        if not latest_version:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secret version not found")
 
         # Decrypt payload
         plaintext = crypto_engine.decrypt_secret(
@@ -169,9 +179,9 @@ class SecretService:
         db: AsyncSession,
         secret_id: uuid.UUID,
         value: str,
-        comment: Optional[str] = None,
-        change_message: Optional[str] = None,
-        actor_id: Optional[uuid.UUID] = None,
+        comment: str | None = None,
+        change_message: str | None = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
     ) -> Secret:
         stmt = (
@@ -237,8 +247,8 @@ class SecretService:
         db: AsyncSession,
         secret_id: uuid.UUID,
         target_version_num: int,
-        reason: Optional[str] = None,
-        actor_id: Optional[uuid.UUID] = None,
+        reason: str | None = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
     ) -> Secret:
         """Rolls back to historical version by decrypting it and producing a new immutable head version."""

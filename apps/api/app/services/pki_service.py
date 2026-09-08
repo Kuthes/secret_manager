@@ -2,19 +2,18 @@ import base64
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Tuple
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException, status
 
 from cryptography import x509
-from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
+from fastapi import HTTPException, status
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.app.core.config import settings
-from apps.api.app.models.pki import CertificateAuthority, Certificate
+from apps.api.app.models.pki import Certificate, CertificateAuthority
 from apps.api.app.services.audit_service import audit_service
 
 
@@ -45,8 +44,8 @@ class PKIService:
         common_name: str,
         ca_type: str = "root",
         validity_days: int = 3650,
-        parent_ca_id: Optional[uuid.UUID] = None,
-        actor_id: Optional[uuid.UUID] = None,
+        parent_ca_id: uuid.UUID | None = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
     ) -> CertificateAuthority:
         # Generate CA RSA Key (4096-bit for Root CA)
@@ -133,11 +132,11 @@ class PKIService:
         db: AsyncSession,
         ca_id: uuid.UUID,
         common_name: str,
-        san_dns_names: List[str],
+        san_dns_names: list[str],
         validity_days: int = 90,
-        actor_id: Optional[uuid.UUID] = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
-    ) -> Tuple[Certificate, str]:
+    ) -> tuple[Certificate, str]:
         ca = await db.get(CertificateAuthority, ca_id)
         if not ca or ca.status != "active":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active CA not found")
@@ -233,7 +232,7 @@ class PKIService:
         db: AsyncSession,
         cert_id: uuid.UUID,
         reason: str = "key_compromise",
-        actor_id: Optional[uuid.UUID] = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
     ) -> Certificate:
         cert = await db.get(Certificate, cert_id)
@@ -301,7 +300,7 @@ class PKIService:
         self,
         db: AsyncSession,
         cert_id: uuid.UUID,
-        actor_id: Optional[uuid.UUID] = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
     ) -> str:
         cert = await db.get(Certificate, cert_id)

@@ -1,6 +1,11 @@
 import pytest
-from apps.api.app.core.crypto import EnvelopeCryptoEngine, CryptoError
-from apps.api.app.core.security import get_password_hash, verify_password, mask_secret_value
+
+from apps.api.app.core.crypto import CryptoError, EnvelopeCryptoEngine
+from apps.api.app.core.security import (
+    get_password_hash,
+    mask_secret_value,
+    verify_password,
+)
 from apps.api.app.services.scanner_service import ScannerService
 
 

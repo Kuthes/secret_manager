@@ -1,16 +1,14 @@
+
 import pytest
 import pytest_asyncio
-import uuid
-from datetime import datetime, timezone, timedelta
 from cryptography import x509
 from cryptography.x509.oid import ExtensionOID
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from apps.api.app.db.session import Base
-from apps.api.app.models.user import User, Organization, Role, OrganizationMembership
-from apps.api.app.models.pki import CertificateAuthority, Certificate
-from apps.api.app.services.pki_service import pki_service
 from apps.api.app.core.security import get_password_hash
+from apps.api.app.db.session import Base
+from apps.api.app.models.user import Organization, OrganizationMembership, Role, User
+from apps.api.app.services.pki_service import pki_service
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -168,3 +166,55 @@ async def test_reveal_private_key_auditing(pki_env):
             actor_name="Audit Admin",
         )
         assert "BEGIN PRIVATE KEY" in revealed_key
+
+
+@pytest.mark.asyncio
+async def test_leaf_ca_privilege_escalation_prevented(pki_env):
+    t = pki_env
+    async with t["session_factory"]() as db:
+        ca = await pki_service.create_ca(
+            db=db,
+            organization_id=t["org"].id,
+            name="Escalation Root CA",
+            common_name="Escalation Root",
+        )
+        cert_model, _ = await pki_service.issue_certificate(
+            db=db,
+            ca_id=ca.id,
+            common_name="attacker.leaf.internal",
+            san_dns_names=["attacker.leaf.internal"],
+            validity_days=30,
+        )
+
+        # Parse X.509 cert and assert strict leaf invariants
+        leaf_cert = x509.load_pem_x509_certificate(cert_model.cert_pem.encode("utf-8"))
+        bc = leaf_cert.extensions.get_extension_for_oid(ExtensionOID.BASIC_CONSTRAINTS).value
+        assert bc.ca is False
+        assert bc.path_length is None
+
+        ku = leaf_cert.extensions.get_extension_for_oid(ExtensionOID.KEY_USAGE).value
+        assert ku.key_cert_sign is False
+        assert ku.crl_sign is False
+
+
+@pytest.mark.asyncio
+async def test_revoked_ca_cannot_issue_certificates(pki_env):
+    t = pki_env
+    async with t["session_factory"]() as db:
+        ca = await pki_service.create_ca(
+            db=db,
+            organization_id=t["org"].id,
+            name="Doomed CA",
+            common_name="Doomed Root",
+        )
+        ca.status = "revoked"
+        await db.flush()
+
+        with pytest.raises(Exception) as exc_info:
+            await pki_service.issue_certificate(
+                db=db,
+                ca_id=ca.id,
+                common_name="fail.leaf.internal",
+                san_dns_names=["fail.leaf.internal"],
+            )
+        assert "Active CA not found" in str(exc_info.value)

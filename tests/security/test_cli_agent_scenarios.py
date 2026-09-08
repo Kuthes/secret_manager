@@ -1,10 +1,12 @@
 import json
 import os
 import tempfile
+
 import pytest
-from apps.api.app.services.scanner_service import scanner_service
+
 from apps.api.app.core.config import Settings
 from apps.api.app.core.security import mask_secret_value
+from apps.api.app.services.scanner_service import scanner_service
 
 
 def test_agent_atomic_template_rendering():
@@ -84,6 +86,7 @@ def test_production_fail_closed_config_validation():
 def test_production_valid_config_succeeds():
     s = Settings(
         ENVIRONMENT="production",
+        DEMO_MODE=False,
         SECRET_KEY="A" * 64,
         MASTER_ENCRYPTION_KEY="QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=",
     )

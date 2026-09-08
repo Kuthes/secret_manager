@@ -1,17 +1,26 @@
+import uuid
+
 import pytest
 import pytest_asyncio
-import uuid
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from apps.api.app.main import app
-from apps.api.app.db.session import Base, get_db
 from apps.api.app.core.security import create_access_token, get_password_hash
-from apps.api.app.models.user import User, Organization, Role, Permission, OrganizationMembership, Project, Environment
-from apps.api.app.models.pam import AccessResource, AccessRequest
-from apps.api.app.services.secret_service import secret_service
-from apps.api.app.services.pki_service import pki_service
+from apps.api.app.db.session import Base, get_db
+from apps.api.app.main import app
+from apps.api.app.models.pam import AccessRequest, AccessResource
+from apps.api.app.models.user import (
+    Environment,
+    Organization,
+    OrganizationMembership,
+    Permission,
+    Project,
+    Role,
+    User,
+)
 from apps.api.app.services.kms_service import kms_service
+from apps.api.app.services.pki_service import pki_service
+from apps.api.app.services.secret_service import secret_service
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -240,8 +249,20 @@ async def test_viewer_restricted_read_only(rbac_env):
     )
     assert resp.status_code == 403
 
+    # Viewer CANNOT delete secret
+    resp = await client.delete(f"/api/v1/secrets/{t['secret'].id}", headers=headers)
+    assert resp.status_code == 403
+
+    # Viewer CANNOT rotate secret
+    resp = await client.post(f"/api/v1/secrets/{t['secret'].id}/rollback", json={"target_version": 1}, headers=headers)
+    assert resp.status_code == 403
+
     # Viewer CANNOT encrypt KMS
     resp = await client.post(f"/api/v1/kms/keys/{t['key'].id}/encrypt", json={"plaintext": "test"}, headers=headers)
+    assert resp.status_code == 403
+
+    # Viewer CANNOT decrypt KMS
+    resp = await client.post(f"/api/v1/kms/keys/{t['key'].id}/decrypt", json={"ciphertext": "QUFB", "nonce": "QUFB", "version": 1}, headers=headers)
     assert resp.status_code == 403
 
     # Viewer CANNOT issue cert
@@ -250,6 +271,18 @@ async def test_viewer_restricted_read_only(rbac_env):
         json={"ca_id": str(t["ca"].id), "common_name": "test.local", "san_dns_names": []},
         headers=headers,
     )
+    assert resp.status_code == 403
+
+    # Viewer CANNOT read certificate private key
+    resp = await client.get(f"/api/v1/pki/certificates/{t['cert'].id}/private-key", headers=headers)
+    assert resp.status_code == 403
+
+    # Viewer CANNOT approve PAM requests
+    resp = await client.post(f"/api/v1/access/requests/{t['pam_req'].id}/review", json={"decision": "approved"}, headers=headers)
+    assert resp.status_code == 403
+
+    # Viewer CANNOT create integrations
+    resp = await client.post("/api/v1/integrations", json={"name": "test", "provider_type": "github", "credentials": {}}, headers=headers)
     assert resp.status_code == 403
 
 
@@ -282,8 +315,6 @@ async def test_pam_self_approval_prevented(rbac_env):
     t = rbac_env
     client = t["client"]
     
-    # Dev requester tries to review own request (even if we temporarily simulate admin token)
-    # 1. Admin creates their own PAM request
     admin_headers = {"Authorization": f"Bearer {t['tokens']['admin']}", "X-Organization-Id": str(t["org"].id)}
     req_resp = await client.post(
         "/api/v1/access/requests",
@@ -293,12 +324,37 @@ async def test_pam_self_approval_prevented(rbac_env):
     assert req_resp.status_code == 201
     admin_req_id = req_resp.json()["id"]
 
-    # 2. Admin attempts to self-approve their own request
     review_resp = await client.post(
         f"/api/v1/access/requests/{admin_req_id}/review",
         json={"decision": "approved", "comment": "Self approval attempt"},
         headers=admin_headers,
     )
-    # Must be rejected with 403 Forbidden!
     assert review_resp.status_code == 403
     assert "Self-approval forbidden" in review_resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_organization_header_handling(rbac_env):
+    """SEC-04 verification: valid header + membership, invalid header format, foreign org header."""
+    t = rbac_env
+    client = t["client"]
+    admin_token = t["tokens"]["admin"]
+
+    # 1. No header: succeeds with default membership
+    resp = await client.get("/api/v1/projects", headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+
+    # 2. Valid header with valid membership: succeeds
+    resp = await client.get("/api/v1/projects", headers={"Authorization": f"Bearer {admin_token}", "X-Organization-Id": str(t["org"].id)})
+    assert resp.status_code == 200
+
+    # 3. Foreign organization UUID where user is not a member: 403 Forbidden
+    random_foreign_org_id = str(uuid.uuid4())
+    resp = await client.get("/api/v1/projects", headers={"Authorization": f"Bearer {admin_token}", "X-Organization-Id": random_foreign_org_id})
+    assert resp.status_code == 403
+    assert "not a member of the requested organization" in resp.json()["detail"]
+
+    # 4. Malformed header value: 400 Bad Request
+    resp = await client.get("/api/v1/projects", headers={"Authorization": f"Bearer {admin_token}", "X-Organization-Id": "not-a-uuid"})
+    assert resp.status_code == 400
+    assert "Invalid organization ID format" in resp.json()["detail"]

@@ -1,20 +1,27 @@
 import uuid
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, Response
-from sqlalchemy import select, and_
+
+from fastapi import APIRouter, Depends, Response, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.app.api.deps import get_current_org, get_current_user, require_permission
+from apps.api.app.api.loaders import get_owned_ca, get_owned_certificate
 from apps.api.app.db.session import get_db
-from apps.api.app.models.pki import CertificateAuthority, Certificate
-from apps.api.app.models.user import User, Organization
-from apps.api.app.schemas.pki import CACreateRequest, CAResponse, CertIssueRequest, CertResponse, CertRevokeRequest
+from apps.api.app.models.pki import Certificate, CertificateAuthority
+from apps.api.app.models.user import Organization, User
+from apps.api.app.schemas.pki import (
+    CACreateRequest,
+    CAResponse,
+    CertIssueRequest,
+    CertResponse,
+    CertRevokeRequest,
+)
 from apps.api.app.services.pki_service import pki_service
-from apps.api.app.api.deps import get_current_user, get_current_org, require_permission
 
 router = APIRouter(prefix="/pki", tags=["PKI & Certificates"])
 
 
-@router.get("/ca", response_model=List[CAResponse], dependencies=[Depends(require_permission("ca:list"))])
+@router.get("/ca", response_model=list[CAResponse], dependencies=[Depends(require_permission("ca:list"))])
 async def list_cas(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -32,9 +39,7 @@ async def create_ca(
     user: User = Depends(get_current_user),
 ):
     if req.parent_ca_id:
-        parent_ca = await db.get(CertificateAuthority, req.parent_ca_id)
-        if not parent_ca or parent_ca.organization_id != org.id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent CA not found in organization")
+        await get_owned_ca(db=db, ca_id=req.parent_ca_id, organization_id=org.id)
 
     ca = await pki_service.create_ca(
         db=db,
@@ -56,15 +61,12 @@ async def get_ca_crl(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
 ):
-    ca = await db.get(CertificateAuthority, ca_id)
-    if not ca or ca.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certificate Authority not found")
-
+    await get_owned_ca(db=db, ca_id=ca_id, organization_id=org.id)
     crl_pem = await pki_service.generate_crl(db, ca_id)
     return Response(content=crl_pem, media_type="application/pkix-crl")
 
 
-@router.get("/certificates", response_model=List[CertResponse], dependencies=[Depends(require_permission("certificate:read"))])
+@router.get("/certificates", response_model=list[CertResponse], dependencies=[Depends(require_permission("certificate:read"))])
 async def list_certificates(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -86,13 +88,11 @@ async def issue_certificate(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    ca = await db.get(CertificateAuthority, req.ca_id)
-    if not ca or ca.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certificate Authority not found")
+    ca = await get_owned_ca(db=db, ca_id=req.ca_id, organization_id=org.id)
 
     cert, priv_key_pem = await pki_service.issue_certificate(
         db=db,
-        ca_id=req.ca_id,
+        ca_id=ca.id,
         common_name=req.common_name,
         san_dns_names=req.san_dns_names,
         validity_days=req.validity_days,
@@ -121,17 +121,11 @@ async def revoke_certificate(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    cert = await db.get(Certificate, cert_id)
-    if not cert:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certificate not found")
-
-    ca = await db.get(CertificateAuthority, cert.ca_id)
-    if not ca or ca.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certificate not found")
+    cert = await get_owned_certificate(db=db, cert_id=cert_id, organization_id=org.id)
 
     cert = await pki_service.revoke_certificate(
         db=db,
-        cert_id=cert_id,
+        cert_id=cert.id,
         reason=req.reason,
         actor_id=user.id,
         actor_name=user.full_name,
@@ -146,17 +140,11 @@ async def get_certificate_private_key(
     org: Organization = Depends(get_current_org),
     user: User = Depends(get_current_user),
 ):
-    cert = await db.get(Certificate, cert_id)
-    if not cert:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certificate not found")
-
-    ca = await db.get(CertificateAuthority, cert.ca_id)
-    if not ca or ca.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certificate not found")
+    cert = await get_owned_certificate(db=db, cert_id=cert_id, organization_id=org.id)
 
     priv_key_pem = await pki_service.reveal_private_key(
         db=db,
-        cert_id=cert_id,
+        cert_id=cert.id,
         actor_id=user.id,
         actor_name=user.full_name,
     )

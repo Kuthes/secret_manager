@@ -1,5 +1,9 @@
 import pytest
-from apps.api.app.core.ssrf import validate_safe_url, SSRFProtectionError
+
+from apps.api.app.core.ssrf import (
+    SSRFProtectionError,
+    validate_safe_url,
+)
 
 
 def test_public_urls_allowed():
@@ -32,6 +36,8 @@ def test_private_subnets_rejected():
         validate_safe_url("http://172.16.0.10:8080/hook")
     with pytest.raises(SSRFProtectionError):
         validate_safe_url("http://192.168.1.1/router")
+    with pytest.raises(SSRFProtectionError):
+        validate_safe_url("http://100.64.0.1/cgnat")
 
 
 def test_invalid_schemes_rejected():
@@ -41,3 +47,8 @@ def test_invalid_schemes_rejected():
         validate_safe_url("file:///etc/passwd")
     with pytest.raises(SSRFProtectionError):
         validate_safe_url("gopher://example.com")
+
+
+def test_allow_private_flag_override():
+    # Explicitly permitted private target
+    assert validate_safe_url("http://10.0.0.5/api", allow_private=True) == "http://10.0.0.5/api"

@@ -1,18 +1,17 @@
 import base64
 import os
 import uuid
-from typing import Optional, Tuple, Dict, Any
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException, status
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.asymmetric import rsa, ed25519, padding
-from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519, padding, rsa
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from fastapi import HTTPException, status
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.app.core.config import settings
-from apps.api.app.models.kms import ManagedKey, ManagedKeyVersion, EncryptionOperation
+from apps.api.app.models.kms import EncryptionOperation, ManagedKey, ManagedKeyVersion
 from apps.api.app.services.audit_service import audit_service
 
 
@@ -35,7 +34,7 @@ class KMSService:
         nonce, ct = raw[:12], raw[12:]
         return self._aesgcm.decrypt(nonce, ct, b"kms_master")
 
-    def _generate_raw_key(self, algorithm: str) -> Tuple[str, Optional[str]]:
+    def _generate_raw_key(self, algorithm: str) -> tuple[str, str | None]:
         if algorithm == "AES-256-GCM":
             raw_key = AESGCM.generate_key(bit_length=256)
             return self._encrypt_key_material(raw_key), None
@@ -73,8 +72,8 @@ class KMSService:
         name: str,
         algorithm: str = "AES-256-GCM",
         key_usage: str = "ENCRYPT_DECRYPT",
-        project_id: Optional[uuid.UUID] = None,
-        actor_id: Optional[uuid.UUID] = None,
+        project_id: uuid.UUID | None = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
     ) -> ManagedKey:
         encrypted_mat, public_pem = self._generate_raw_key(algorithm)
@@ -122,7 +121,7 @@ class KMSService:
         self,
         db: AsyncSession,
         key_id: uuid.UUID,
-        actor_id: Optional[uuid.UUID] = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
     ) -> ManagedKey:
         key = await db.get(ManagedKey, key_id)
@@ -160,7 +159,7 @@ class KMSService:
 
         return key
 
-    async def _get_key_material_for_version(self, db: AsyncSession, key: ManagedKey, version: Optional[int] = None) -> Tuple[bytes, Optional[str]]:
+    async def _get_key_material_for_version(self, db: AsyncSession, key: ManagedKey, version: int | None = None) -> tuple[bytes, str | None]:
         if version is None or version == key.version:
             return self._decrypt_key_material(key.encrypted_key_material), key.public_key_pem
 
@@ -176,9 +175,9 @@ class KMSService:
         db: AsyncSession,
         key_id: uuid.UUID,
         plaintext: str,
-        actor_id: Optional[uuid.UUID] = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
-    ) -> Tuple[str, Optional[str], int]:
+    ) -> tuple[str, str | None, int]:
         key = await db.get(ManagedKey, key_id)
         if not key or key.is_deleted or key.status != "enabled":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active key not found")
@@ -206,9 +205,9 @@ class KMSService:
         db: AsyncSession,
         key_id: uuid.UUID,
         ciphertext_b64: str,
-        nonce_b64: Optional[str] = None,
-        version: Optional[int] = None,
-        actor_id: Optional[uuid.UUID] = None,
+        nonce_b64: str | None = None,
+        version: int | None = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
     ) -> str:
         key = await db.get(ManagedKey, key_id)
@@ -241,9 +240,9 @@ class KMSService:
         db: AsyncSession,
         key_id: uuid.UUID,
         message: str,
-        actor_id: Optional[uuid.UUID] = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
-    ) -> Tuple[str, int]:
+    ) -> tuple[str, int]:
         key = await db.get(ManagedKey, key_id)
         if not key or key.is_deleted or key.status != "enabled":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active key not found")
@@ -279,8 +278,8 @@ class KMSService:
         key_id: uuid.UUID,
         message: str,
         signature_b64: str,
-        version: Optional[int] = None,
-        actor_id: Optional[uuid.UUID] = None,
+        version: int | None = None,
+        actor_id: uuid.UUID | None = None,
         actor_name: str = "system",
     ) -> bool:
         key = await db.get(ManagedKey, key_id)

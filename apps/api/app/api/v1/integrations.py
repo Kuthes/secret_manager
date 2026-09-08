@@ -1,21 +1,29 @@
 import json
-import uuid
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.app.db.session import get_db
-from apps.api.app.models.integration import IntegrationConnection, SecretSync, SecretSyncRun
-from apps.api.app.models.user import Organization, Project
-from apps.api.app.schemas.integration import IntegrationCreate, IntegrationResponse, SyncCreate, SyncResponse
-from apps.api.app.core.crypto import crypto_engine
 from apps.api.app.api.deps import get_current_org, require_permission
+from apps.api.app.api.loaders import get_owned_environment, get_owned_integration
+from apps.api.app.core.crypto import crypto_engine
+from apps.api.app.db.session import get_db
+from apps.api.app.models.integration import (
+    IntegrationConnection,
+    SecretSync,
+)
+from apps.api.app.models.user import Organization
+from apps.api.app.schemas.integration import (
+    IntegrationCreate,
+    IntegrationResponse,
+    SyncCreate,
+    SyncResponse,
+)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations & Syncs"])
 
 
-@router.get("", response_model=List[IntegrationResponse], dependencies=[Depends(require_permission("integration:list"))])
+@router.get("", response_model=list[IntegrationResponse], dependencies=[Depends(require_permission("integration:list"))])
 async def list_integrations(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -54,7 +62,7 @@ async def create_integration(
     return conn
 
 
-@router.get("/syncs", response_model=List[SyncResponse], dependencies=[Depends(require_permission("integration:list"))])
+@router.get("/syncs", response_model=list[SyncResponse], dependencies=[Depends(require_permission("integration:list"))])
 async def list_syncs(
     db: AsyncSession = Depends(get_db),
     org: Organization = Depends(get_current_org),
@@ -71,19 +79,20 @@ async def create_sync(
     org: Organization = Depends(get_current_org),
 ):
     # Verify connection belongs to org
-    conn = await db.get(IntegrationConnection, req.connection_id)
-    if not conn or conn.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration connection not found")
+    conn = await get_owned_integration(db=db, connection_id=req.connection_id, organization_id=org.id)
 
-    # Verify project belongs to org
-    project = await db.get(Project, req.project_id)
-    if not project or project.is_deleted or project.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    # Verify project and environment belong to org
+    await get_owned_environment(
+        db=db,
+        environment_id=req.environment_id,
+        project_id=req.project_id,
+        organization_id=org.id,
+    )
 
     sync = SecretSync(
         project_id=req.project_id,
         environment_id=req.environment_id,
-        connection_id=req.connection_id,
+        connection_id=conn.id,
         target_path=req.target_path,
         sync_status="active",
     )

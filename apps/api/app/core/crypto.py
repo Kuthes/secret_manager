@@ -1,15 +1,16 @@
 import base64
-import os
 import json
-from typing import Dict, Any, Tuple, Optional
+import os
+from typing import Any
+
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 from apps.api.app.core.config import settings
 from apps.api.app.core.kms_provider import KMSProvider, LocalKMSProvider
 
 
 class CryptoError(Exception):
     """Base cryptographic exception."""
-    pass
 
 
 class EnvelopeCryptoEngine:
@@ -24,7 +25,7 @@ class EnvelopeCryptoEngine:
     5. Zero-plaintext MEK rotation allows rewrapping DEKs without decrypting original ciphertext.
     """
 
-    def __init__(self, provider: Optional[KMSProvider] = None, master_key_b64: str = settings.MASTER_ENCRYPTION_KEY, mek_id: str = settings.MEK_ID):
+    def __init__(self, provider: KMSProvider | None = None, master_key_b64: str = settings.MASTER_ENCRYPTION_KEY, mek_id: str = settings.MEK_ID):
         if provider:
             self.provider = provider
         else:
@@ -42,7 +43,7 @@ class EnvelopeCryptoEngine:
             return self.provider.active_version
         return 1
 
-    def rotate_mek(self, new_mek_id: str, new_key_b64: str) -> Tuple[str, int]:
+    def rotate_mek(self, new_mek_id: str, new_key_b64: str) -> tuple[str, int]:
         """Rotate the active MEK in the provider."""
         if isinstance(self.provider, LocalKMSProvider):
             return self.provider.rotate_key(new_mek_id, new_key_b64)
@@ -67,7 +68,7 @@ class EnvelopeCryptoEngine:
         environment_id: str,
         secret_key: str,
         version: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Envelope-encrypts secret value:
         1. Generates 32-byte ephemeral DEK
@@ -97,11 +98,11 @@ class EnvelopeCryptoEngine:
                 "algorithm": "AES-256-GCM",
             }
         except Exception as e:
-            raise CryptoError(f"Envelope encryption failed: {str(e)}") from e
+            raise CryptoError(f"Envelope encryption failed: {e!s}") from e
 
     def decrypt_secret(
         self,
-        encrypted_payload: Dict[str, Any],
+        encrypted_payload: dict[str, Any],
         org_id: str,
         project_id: str,
         environment_id: str,
@@ -136,13 +137,13 @@ class EnvelopeCryptoEngine:
 
     def rewrap_secret_dek(
         self,
-        encrypted_payload: Dict[str, Any],
+        encrypted_payload: dict[str, Any],
         org_id: str,
         project_id: str,
         environment_id: str,
         secret_key: str,
         version: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Zero-Plaintext MEK Rewrap:
         Unwraps DEK under old MEK and rewraps under active MEK.
@@ -172,7 +173,7 @@ class EnvelopeCryptoEngine:
                 "algorithm": encrypted_payload.get("algorithm", "AES-256-GCM"),
             }
         except Exception as e:
-            raise CryptoError(f"DEK rewrapping failed: {str(e)}") from e
+            raise CryptoError(f"DEK rewrapping failed: {e!s}") from e
 
 
 crypto_engine = EnvelopeCryptoEngine()

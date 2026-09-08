@@ -1,0 +1,29 @@
+{
+  "name": "@aegisvault/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript/JavaScript client SDK for the AegisVault Security & Secret Management Platform.",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "aegisvault",
+    "secrets",
+    "security",
+    "kms",
+    "pki",
+    "vault",
+    "credentials"
+  ],
+  "author": "AegisVault Team <security@aegisvault.io>",
+  "license": "MIT"
+}

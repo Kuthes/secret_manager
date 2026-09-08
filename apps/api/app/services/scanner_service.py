@@ -1,13 +1,13 @@
 import hashlib
-import json
 import math
-import os
 import re
 import uuid
-from typing import List, Dict, Any, Tuple, Optional, Set
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from apps.api.app.models.scanner import ScannerRepository, ScanJob, ScanFinding
+
 from apps.api.app.core.security import mask_secret_value
+from apps.api.app.models.scanner import ScanFinding
 
 # Extended Gitleaks-compatible rules
 SCAN_RULES = [
@@ -79,8 +79,8 @@ class ScannerService:
     def scan_content(
         content: str,
         file_path: str = "source.txt",
-        baseline_fingerprints: Optional[Set[str]] = None,
-    ) -> List[Dict[str, Any]]:
+        baseline_fingerprints: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
         findings = []
         lines = content.splitlines()
         ignored = baseline_fingerprints or set()
@@ -116,7 +116,7 @@ class ScannerService:
         return findings
 
     @staticmethod
-    def generate_sarif_report(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def generate_sarif_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
         """Format findings into OASIS SARIF 2.1.0 standard schema for GitHub/GitLab CI."""
         results = []
         rules_map = {}
@@ -160,8 +160,8 @@ class ScannerService:
     async def record_findings(
         db: AsyncSession,
         job_id: uuid.UUID,
-        findings_data: List[Dict[str, Any]],
-    ) -> List[ScanFinding]:
+        findings_data: list[dict[str, Any]],
+    ) -> list[ScanFinding]:
         findings = []
         for item in findings_data:
             f = ScanFinding(

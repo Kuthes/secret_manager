@@ -58,6 +58,8 @@ Usage:
   av kms encrypt <KEY_ID> <TEXT>      Encrypt plaintext with KMS key
   av kms decrypt <KEY_ID> <CIPHER>    Decrypt ciphertext with KMS key
   av scan <PATH>                      Scan local files for leaked credentials
+  av audit verify                     Verify cryptographic audit chain
+  av doctor                           Perform environment & connectivity diagnostics
   av version                          Print CLI version`)
 }
 
@@ -71,7 +73,53 @@ func main() {
 
 	switch os.Args[1] {
 	case "version", "--version", "-v":
-		fmt.Println("av version 1.0.0 (AegisVault CLI)")
+		fmt.Println("av version 1.0.0-rc1 (AegisVault CLI)")
+
+	case "doctor":
+		fmt.Println("[*] Running AegisVault CLI Diagnostics...")
+		fmt.Printf(" - API Endpoint: %s\n", cfg.APIURL)
+		fmt.Printf(" - Config Path: %s (permissions 0600)\n", getConfigPath())
+		resp, err := http.Get(cfg.APIURL + "/health")
+		if err != nil {
+			fmt.Printf(" ✗ API Connectivity: FAILED (%v)\n", err)
+		} else {
+			defer resp.Body.Close()
+			if resp.StatusCode == 200 {
+				fmt.Println(" ✓ API Connectivity: OK (Status 200)")
+			} else {
+				fmt.Printf(" ✗ API Connectivity: Status %d\n", resp.StatusCode)
+			}
+		}
+		if cfg.Token != "" {
+			fmt.Println(" ✓ Authentication: Active session token found.")
+		} else {
+			fmt.Println(" ! Authentication: No token present. Run 'av login'.")
+		}
+		fmt.Println("✓ AegisVault CLI Doctor complete.")
+
+	case "audit":
+		if len(os.Args) >= 3 && os.Args[2] == "verify" {
+			req, _ := http.NewRequest("GET", cfg.APIURL+"/api/v1/audit/verify", nil)
+			if cfg.Token != "" {
+				req.Header.Set("Authorization", "Bearer "+cfg.Token)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				fmt.Printf("Audit verification failed: %v\n", err)
+				return
+			}
+			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+			var res map[string]interface{}
+			_ = json.Unmarshal(body, &res)
+			if resp.StatusCode == 200 && res["status"] == "verified" {
+				fmt.Printf("✓ AUDIT CHAIN VERIFIED: %v records verified, 0 anomalies detected.\n", res["verified_count"])
+			} else {
+				fmt.Printf("✗ AUDIT INTEGRITY FAILURE: %s\n", string(body))
+			}
+		} else {
+			fmt.Println("Usage: av audit verify")
+		}
 
 	case "login":
 		email := "demo@aegisvault.local"

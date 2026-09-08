@@ -1,12 +1,12 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class OrganizationCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
-    slug: Optional[str] = None
+    slug: str | None = None
 
 
 class OrganizationResponse(BaseModel):
@@ -35,8 +35,8 @@ class EnvironmentResponse(BaseModel):
 
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
-    slug: Optional[str] = None
-    description: Optional[str] = None
+    slug: str | None = None
+    description: str | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -46,6 +46,6 @@ class ProjectResponse(BaseModel):
     organization_id: uuid.UUID
     name: str
     slug: str
-    description: Optional[str] = None
-    environments: List[EnvironmentResponse] = []
+    description: str | None = None
+    environments: list[EnvironmentResponse] = []
     created_at: datetime

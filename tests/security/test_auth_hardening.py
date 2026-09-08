@@ -1,14 +1,17 @@
+import hashlib
+
 import pytest
 import pytest_asyncio
-import hashlib
-import uuid
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from apps.api.app.main import app
 from apps.api.app.db.session import Base, get_db
-from apps.api.app.core.security import create_access_token, get_password_hash
-from apps.api.app.models.user import User, Organization, Role, OrganizationMembership, ServiceIdentity
+from apps.api.app.main import app
+from apps.api.app.models.user import (
+    Organization,
+    Role,
+    ServiceIdentity,
+)
 from apps.api.app.services.auth_service import get_totp_token
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"

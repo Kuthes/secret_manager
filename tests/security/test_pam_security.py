@@ -1,15 +1,20 @@
+
 import pytest
 import pytest_asyncio
-import uuid
-from datetime import datetime, timezone
 from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from apps.api.app.db.session import Base
-from apps.api.app.models.user import User, Organization, Role, OrganizationMembership, Project
-from apps.api.app.models.pam import AccessResource, AccessRequest
-from apps.api.app.services.pam_service import pam_service
 from apps.api.app.core.security import get_password_hash
+from apps.api.app.db.session import Base
+from apps.api.app.models.pam import AccessResource
+from apps.api.app.models.user import (
+    Organization,
+    OrganizationMembership,
+    Project,
+    Role,
+    User,
+)
+from apps.api.app.services.pam_service import pam_service
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -37,12 +42,14 @@ async def pam_env():
 
         user1 = User(email="requester@pam.local", hashed_password=get_password_hash("Pass123!"), full_name="Requester", is_active=True, is_verified=True)
         user2 = User(email="approver@pam.local", hashed_password=get_password_hash("Pass123!"), full_name="Approver", is_active=True, is_verified=True)
-        db.add_all([user1, user2])
+        user3 = User(email="second_approver@pam.local", hashed_password=get_password_hash("Pass123!"), full_name="Second Approver", is_active=True, is_verified=True)
+        db.add_all([user1, user2, user3])
         await db.flush()
 
         db.add_all([
             OrganizationMembership(organization_id=org.id, user_id=user1.id, role_id=role.id),
             OrganizationMembership(organization_id=org.id, user_id=user2.id, role_id=role.id),
+            OrganizationMembership(organization_id=org.id, user_id=user3.id, role_id=role.id),
         ])
 
         resource = AccessResource(
@@ -62,6 +69,7 @@ async def pam_env():
             "resource": resource,
             "requester": user1,
             "approver": user2,
+            "second_approver": user3,
         }
 
     await engine.dispose()
@@ -81,7 +89,7 @@ async def test_self_approval_prevented(pam_env):
         )
         await db.commit()
 
-        # Requester tries to review and approve own request
+        # Requester tries to review and approve own request -> 403 Forbidden
         with pytest.raises(HTTPException) as exc_info:
             await pam_service.review_request(
                 db=db,
@@ -92,6 +100,74 @@ async def test_self_approval_prevented(pam_env):
             )
         assert exc_info.value.status_code == 403
         assert "Self-approval forbidden" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_duplicate_review_by_same_approver_prevented(pam_env):
+    t = pam_env
+    async with t["session_factory"]() as db:
+        req = await pam_service.create_request(
+            db=db,
+            resource_id=t["resource"].id,
+            requester_id=t["requester"].id,
+            requester_name=t["requester"].full_name,
+            justification="Two-person check",
+            duration_seconds=1800,
+        )
+        # First decision succeeds
+        await pam_service.review_request(
+            db=db,
+            request_id=req.id,
+            approver_id=t["approver"].id,
+            approver_name=t["approver"].full_name,
+            decision="approved",
+        )
+        await db.commit()
+
+        # Same approver tries to review again -> 400 Bad Request
+        with pytest.raises(HTTPException) as exc_info:
+            await pam_service.review_request(
+                db=db,
+                request_id=req.id,
+                approver_id=t["approver"].id,
+                approver_name=t["approver"].full_name,
+                decision="approved",
+            )
+        assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_revoked_request_cannot_be_reapproved(pam_env):
+    t = pam_env
+    async with t["session_factory"]() as db:
+        req = await pam_service.create_request(
+            db=db,
+            resource_id=t["resource"].id,
+            requester_id=t["requester"].id,
+            requester_name=t["requester"].full_name,
+            justification="Will revoke",
+            duration_seconds=1800,
+        )
+        await pam_service.revoke_request(
+            db=db,
+            request_id=req.id,
+            actor_id=t["approver"].id,
+            actor_name=t["approver"].full_name,
+            reason="Cancelled by security",
+        )
+        await db.commit()
+
+        # Attempt to approve revoked request -> 400 Bad Request
+        with pytest.raises(HTTPException) as exc_info:
+            await pam_service.review_request(
+                db=db,
+                request_id=req.id,
+                approver_id=t["second_approver"].id,
+                approver_name=t["second_approver"].full_name,
+                decision="approved",
+            )
+        assert exc_info.value.status_code == 400
+        assert "Cannot review request: current status is 'revoked'" in exc_info.value.detail
 
 
 @pytest.mark.asyncio

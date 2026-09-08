@@ -1,9 +1,11 @@
 import base64
 import os
-import pytest
 from concurrent.futures import ThreadPoolExecutor
-from apps.api.app.core.crypto import EnvelopeCryptoEngine, CryptoError
-from apps.api.app.core.kms_provider import LocalKMSProvider, AWSKMSProvider
+
+import pytest
+
+from apps.api.app.core.crypto import CryptoError, EnvelopeCryptoEngine
+from apps.api.app.core.kms_provider import AWSKMSProvider, LocalKMSProvider
 
 
 @pytest.fixture
@@ -115,7 +117,7 @@ def test_large_secret_payload(crypto_engine):
 
 
 def test_unicode_and_special_characters(crypto_engine):
-    unicode_secret = "🔐 AegisVault 2026 — 🛡️ 私密密钥 / ключ / Schlüssel ​﻿!"
+    unicode_secret = "🔐 AegisVault 2026 — 🛡️ 私密密钥 / ключ / Schlüssel \u200b﻿!"
     payload = crypto_engine.encrypt_secret(unicode_secret, "org1", "proj1", "env1", "UNICODE_KEY", 1)
     decrypted = crypto_engine.decrypt_secret(payload, "org1", "proj1", "env1", "UNICODE_KEY", 1)
     assert decrypted == unicode_secret
