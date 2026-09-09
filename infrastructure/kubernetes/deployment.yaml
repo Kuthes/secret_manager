@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aegisvault-api
+  labels:
+    app.kubernetes.io/name: aegisvault-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aegisvault-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: aegisvault-api
+    spec:
+      containers:
+      - name: api
+        image: aegisvault/api:v1.0.0-rc1
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: aegisvault-config
+        - secretRef:
+            name: aegisvault-secrets
+        resources:
+          limits:
+            cpu: "2"
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi

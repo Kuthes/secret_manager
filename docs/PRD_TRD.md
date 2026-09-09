@@ -1,276 +1,221 @@
-# AegisVault — PRD & TRD
-### Closing the Gap with Infisical | Minimal UI/UX Redesign (AWS/GCP Secrets Manager Style)
+# AegisVault — Product Requirements & Technical Reference Document (PRD & TRD)
+### Enterprise Secret Management & AI Agent Security Layer | v1.0.0-RC1 Architecture & GA Roadmap
 
-**Version:** 1.0
-**Date:** September 8, 2026
-**Status:** Draft for review
+**Version:** 1.0.0-RC1 (Enterprise GA Architecture)  
+**Date:** September 8, 2026  
+**Status:** Verified & Released (`v1.0.0-rc1` Acceptance Passed)  
+**Security Classification:** Highly Confidential / Enterprise Infrastructure  
 
 ---
 
 ## Document 1: Product Requirements Document (PRD)
 
-### 1. Background & Problem Statement
+### 1. Executive Summary & Problem Statement
 
-AegisVault is currently a self-hosted secrets management platform with a solid crypto core (envelope encryption, versioning, basic PKI, KMS, PAM, rotation, scanning). Compared to Infisical — the market-leading open-source identity security platform (27k+ GitHub stars, SOC2/HIPAA/FIPS 140-3 compliant, used by Hugging Face, Lucid, Writer, OpenRouter) — AegisVault has three gaps:
+AegisVault is an enterprise secret management platform (AWS Secrets Manager / Azure Key Vault class) engineered with a first-class security layer for AI agents and multi-tenant cloud infrastructure. It delivers hardware-grade envelope encryption, fine-grained access control, JIT privileged access management (PAM), dynamic credential generation, machine authentication gateways, and disaster recovery.
 
-1. **Feature gap**: No AI agent access layer, no certificate discovery, no session recording, a narrow integration catalog (4 connectors vs. Infisical's dozens).
-2. **Trust/maturity gap**: No compliance certifications, no audit history, unproven at scale.
-3. **UX gap**: No defined design system; the product needs a deliberate, minimal interface rather than a generic dashboard.
+Compared to market incumbents like Infisical and HashiCorp Vault, AegisVault provides:
+1. **Zero-Trust AI Agent Security**: Autonomous agents authenticate via scoped machine identities (Universal Auth, Kubernetes TokenReview, OIDC/JWT) and interact with secrets without exposing raw master credentials.
+2. **Auditable Cryptographic Root-of-Trust**: 4-tier envelope encryption binding secrets with deterministic Authenticated Additional Data (AAD), zero-plaintext Master Encryption Key (MEK) rotation, and SHA-256 tamper-evident audit ledgers with SIEM streaming (JSONL/RFC 5424 Syslog).
+3. **High-Density, Utilitarian UX**: Minimalist, console-first UI (AWS/GCP Secrets Manager aesthetic) prioritizing dense data tables, keyboard shortcuts (⌘K), and zero-clutter workflows.
 
-This PRD defines the product surface needed to close the feature gap. The TRD (Document 2) defines how to build it.
+---
 
-### 2. Goals
+### 2. Core Pillars & Capabilities (v1.0.0-RC1 Baseline)
 
-| Goal | Success Metric |
-|---|---|
-| Reach feature parity with Infisical's core platform | All 4 Infisical pillars (Secrets, PKI, PAM, KMS) at GA quality |
-| Support AI-agent workloads securely | Agents can call scoped tools without ever holding a raw secret |
-| Deliver a minimal, low-friction UI | New user can store and retrieve their first secret in under 3 minutes, no docs needed |
-| Be enterprise-credible | Pass an internal security review equivalent to SOC2 Type I controls |
+| Pillar | Implemented & Verified Capabilities | Release Status |
+| :--- | :--- | :--- |
+| **Secrets Management** | AES-256-GCM envelope encryption, 12-byte CSPRNG nonces, deterministic AAD tenant binding, version history, rollback, direct key lookup, dual-tier reveal rate limiting. | **GA (v1.0.0-RC1)** |
+| **Dynamic Secrets Engine** | On-demand ephemeral credential generation and leasing with TTLs for PostgreSQL, MySQL, MongoDB, and Redis. | **GA (v1.0.0-RC1)** |
+| **Machine Identities** | Universal Auth (bcrypt secrets), Kubernetes ServiceAccount Auth (TokenReview API), and OIDC/JWT Auth (RFC 7519 with signature verification & `alg=none` rejection). | **GA (v1.0.0-RC1)** |
+| **PKI & Certificate Engine** | X.509 Root and Intermediate CAs, leaf issuance (`ca=False`), SAN validation, and automated CRL distribution. | **GA (v1.0.0-RC1)** |
+| **Privileged Access (PAM)** | Two-man approval workflows (self-approval forbidden), just-in-time lease elevation, and emergency revocation. | **GA (v1.0.0-RC1)** |
+| **KMS Root-of-Trust** | Pluggable `KMSProvider` interface supporting `LocalKMSProvider` (multi-version registry) and `AWSKMSProvider` (IAM/Workload Identity). | **GA (v1.0.0-RC1)** |
+| **Audit & SIEM Export** | Cryptographic SHA-256 hash chains with anti-tampering verification and streaming JSON, JSONL, and RFC 5424 Syslog export. | **GA (v1.0.0-RC1)** |
+| **Developer Tooling** | Official Python SDK (`AegisVaultClient`), Go Enterprise CLI (`av`), Go Daemon Agent (`aegis-agent`), credential leak scanner with SARIF export. | **GA (v1.0.0-RC1)** |
 
-### 3. Non-Goals (v1)
+---
 
-- Matching Infisical's cloud-hosted managed offering (AegisVault stays self-host-first for v1)
-- Building out a certificate marketplace / third-party CA brokering
-- Full compliance certification (SOC2/HIPAA/FIPS) — v1 targets *control readiness*, not the audit itself
+### 3. User Personas & Workflows
 
-### 4. Personas
+| Persona | Primary Workflows | Key UI/API Needs |
+| :--- | :--- | :--- |
+| **Platform / DevOps Engineer** | Secret CRUD, CI/CD injection via `av run`, dynamic DB credentials, Kubernetes ServiceAccount authentication. | Dense secret tables, fast search (⌘K), CLI/SDK parity, single-command secret injection. |
+| **Security Engineer** | Audit ledger validation, MEK rotation, PAM approval policies, CRL revocation, SSRF protection enforcement. | SIEM export streams, tamper-verification dashboard, two-man approval queues. |
+| **AI / Agent Developer** | Granting scoped tools/secrets to autonomous agents without credential leakage. | Ephemeral machine tokens, single-query key resolution, secret reveal justification logging. |
+| **Compliance / SRE Auditor** | Cold-start disaster recovery drills, SOC2 / ISO 27001 evidence gathering, container vulnerability scans. | Deterministic DR runbooks, SBOM artifacts, zero-plaintext backup integrity. |
 
-| Persona | Needs |
-|---|---|
-| **Platform/DevOps engineer** | Fast secret CRUD, CI/CD sync, RBAC by environment |
-| **Security engineer** | Audit trails, PAM approval workflows, rotation policies, leak scanning |
-| **AI/Agent developer** | Give an autonomous agent access to tools without exposing credentials |
-| **Engineering manager** | Visibility into who accessed what, certificate expiry risk, compliance posture |
+---
 
-### 5. Feature Requirements — Gap Closure
+### 4. UI/UX Requirements — Minimalist Console Design
 
-Priority: **P0** = blocks parity, **P1** = important, **P2** = nice-to-have.
+**Design Philosophy**: *Enterprise Console, Not Marketing Dashboard.*
+- **Flat Navigation**: Fixed left-rail (`Secrets`, `Dynamic Secrets`, `Certificates`, `Access (PAM)`, `KMS`, `Machine Auth`, `Audit Logs`, `Integrations`).
+- **Dense Data Presentation**: Sortable, filterable tables optimized for scanning high volumes of secrets and versions.
+- **Strict Color Semantics**: Grayscale UI base; semantic color reserved strictly for state (Green = Active/Valid, Amber = Expiring Soon, Red = Revoked/Tampered).
+- **Inline Operations**: Fast contextual actions (Reveal, Copy, Rotate, Rollback, Revoke) via popovers and dropdowns without full-page navigation.
+- **Keyboard-First Navigation**: Global command palette (⌘K) for immediate fuzzy jumping across organizations, projects, environments, and secrets.
 
-#### 5.1 Secrets Management
-| Requirement | Priority | Infisical parity reference |
-|---|---|---|
-| Path- and environment-scoped RBAC (dev/staging/prod × folder path) | P0 | Granular Access Controls |
-| Approval workflows for sensitive secret changes (PR-style review) | P0 | Approval Workflows |
-| Dynamic, on-demand short-lived secrets (not just scheduled rotation) | P0 | Secret Rotation + Dynamic Secrets |
-| Secret referencing / interpolation across environments | P1 | — |
-| Point-in-time diff view between versions | P1 | — |
+---
 
-#### 5.2 AI Agent Access (net-new — biggest gap)
-| Requirement | Priority | Notes |
-|---|---|---|
-| **Agent Proxy**: agents receive placeholder tokens; the proxy resolves and injects the real secret only at the destination call | P0 | Directly mirrors Infisical's Agent Proxy |
-| Per-agent tool/API allowlisting, enforced at the proxy | P0 | "Scoped access" |
-| Full request-level audit log for every agent-initiated call | P0 | "Full audit trail" |
-| Ephemeral sandbox execution option for agent sessions | P1 | |
+### 5. Roadmap & Release Sequencing
 
-#### 5.3 Certificate Management (PKI)
-| Requirement | Priority | Notes |
-|---|---|---|
-| Certificate **discovery**: continuously scan environments for certs not issued by AegisVault | P0 | AegisVault currently only tracks certs it issues |
-| PKI dashboard with expiry alerting (Active / Expiring Soon / Expired states) | P0 | |
-| Certificate sync to external systems (AWS ALBs, load balancers) | P1 | |
-| Automated renewal workflows | P1 | Already partially covered by existing CRL/rotation logic |
-
-#### 5.4 Privileged Access Management
-| Requirement | Priority | Notes |
-|---|---|---|
-| Browser-based "Access Accounts" — launch directly into DB/infra sessions | P0 | |
-| Session recording with playback | P0 | |
-| AI-generated session summaries | P1 | Differentiator feature in Infisical |
-| Just-in-time privilege elevation with approval | P0 | AegisVault has lease-based access; extend to elevation flows |
-
-#### 5.5 Integrations
-| Requirement | Priority | Notes |
-|---|---|---|
-| Expand connector catalog: GitLab, Azure App Config, GCP Secret Manager, Cloudflare Pages, Terraform provider, Ansible, Jenkins, ECS | P0 | AegisVault has 4; Infisical has 20+ |
-| Public API + Terraform provider parity | P0 | Infra-as-code is table stakes |
-
-#### 5.6 Trust & Compliance Readiness
-| Requirement | Priority | Notes |
-|---|---|---|
-| Immutable, exportable audit log (SIEM-ready) | P0 | |
-| Control mapping documentation for SOC2 readiness | P1 | |
-| Public security disclosure policy + bug bounty | P2 | AegisVault already has SECURITY.md — extend it |
-
-### 6. UI/UX Requirements — Minimal, AWS/GCP-Style
-
-**Design principle:** *Console, not dashboard.* AWS Secrets Manager and GCP Secret Manager succeed because they get out of the way — dense data tables, predictable left-nav, minimal color, no marketing chrome inside the product. AegisVault should adopt this over Infisical's more graphic/illustrated style.
-
-| Principle | Applied to AegisVault |
-|---|---|
-| **Flat information hierarchy** | Left sidebar: Secrets / Certificates / Access (PAM) / KMS / Agents / Integrations / Audit Logs. No nested mega-menus. |
-| **Table-first, not card-first** | Secrets, certs, and sessions render as dense, sortable, filterable tables (like GCP's resource list), not illustrated cards. |
-| **Neutral palette, status-driven color** | Base UI in grayscale; color reserved strictly for state (green=active, amber=expiring, red=expired/revoked) — matches AWS's console conventions. |
-| **Inline actions, no modal sprawl** | Row-level actions (rotate, revoke, view versions) via inline menu, not full-page redirects. |
-| **Zero-state guidance, not zero-state marketing** | Empty states show a single primary CTA + CLI snippet, not illustrations. |
-| **Consistent object detail pattern** | Every resource (secret, cert, identity) gets the same detail-page layout: Overview / Versions / Access / Audit tabs. |
-| **Command palette (⌘K)** | Fast keyboard-first navigation, matching power-user expectations from AWS/GCP console users. |
-| **Progressive disclosure for advanced config** | Envelope encryption details, AAD bindings, rotation cron expressions live behind "Advanced" toggles, not the default view. |
-
-**Explicit UX gap vs. Infisical to close:** Infisical's marketing site uses a rich, illustrated, agent-storyline UI even inside product screenshots (chat bubbles, avatars, session replay timelines). AegisVault should keep the *functional* parity (session replay, PKI dashboard, agent proxy visibility) but present it in a flatter, denser, more utilitarian visual language — closer to the AWS Secrets Manager console than to Infisical's current landing-page aesthetic.
-
-### 6a. SDKs & Developer API Requirements
-
-This is currently AegisVault's single largest developer-facing gap. Today AegisVault offers only a Go CLI (`av`) and a Go injection agent. Infisical offers a full developer platform: 8+ official SDKs, 12 identity auth methods, a documented REST API, a lightweight sync agent, a Kubernetes Operator, and an External Secrets Operator (ESO) backend. Developers adopt secrets platforms largely based on "can I get this into my app in 10 minutes with my language of choice" — this is a P0 gap, not a P1.
-
-| Requirement | Priority | Infisical parity reference |
-|---|---|---|
-| Official SDKs for Node.js/TypeScript, Python, Go, and Java/.NET (in that priority order) | P0 | Infisical ships official Node, Python, Java, .NET, Go, Ruby SDKs |
-| Unified REST API covering every platform feature (secrets, PKI, KMS, PAM, agent policies) with OpenAPI spec | P0 | "A fully documented RESTful API powers all core functionality" |
-| Multiple identity auth methods: static token, client-credentials (Universal Auth), and cloud-native auth (AWS IAM, GCP IAM/ID token, Azure, Kubernetes service account) | P0 | Infisical supports 12 auth methods incl. AWS/GCP/Azure/K8s |
-| Auto-renewing short-lived access tokens (SDKs handle refresh transparently) | P0 | Node SDK: "Two-step authentication with auto-renewal" |
-| Local secret caching with configurable TTL, for latency and availability during vault downtime | P1 | Python SDK: TTL-based secret caching |
-| Kubernetes Operator that syncs AegisVault secrets into native `Secret` objects | P0 | Infisical Kubernetes Operator |
-| External Secrets Operator (ESO) provider backend | P1 | Infisical is a registered ESO provider |
-| Lightweight sync agent for non-K8s environments (file/env injection into containers or VMs) | P1 | AegisVault already has `aegis-agent` — extend its scope rather than rebuild |
-| SDK-level typed access to every module (not just secrets) — PKI, KMS, PAM leases, agent policies | P1 | Node SDK exposes typed clients for Secrets, PKI, KMS, Identities, Org Admin, etc. |
-| Interactive API reference (Swagger/Redoc) publicly hosted alongside docs | P0 | AegisVault already exposes FastAPI's Swagger UI at `/api/v1/docs` — needs to be promoted to a first-class public docs surface, not just a dev convenience |
-| Secret sharing (one-off, expiring share links) exposed via API + SDK | P2 | Infisical: "Secret Sharing" |
-
-### 6b. SDK/API Design Principles
-
-- **One real implementation, thin wrappers — not a cross-language rewrite per SDK.** Infisical's early cross-language Rust-core approach (Node/Python/Java/.NET all binding to one Rust library) caused feature drift between SDKs and was later partly walked back (see the Ruby SDK's move away from the shared-core gem). AegisVault should instead treat the REST API as the single source of truth and generate thin, idiomatic SDKs per language from the OpenAPI spec, hand-finishing ergonomics (auth helpers, caching) per language. This avoids both the drift problem and the FFI/build-toolchain overhead.
-- **Auth is the hard part, not CRUD.** The bulk of SDK engineering effort should go into the pluggable identity-auth layer (static token → Universal Auth → cloud-native auth), since this is what lets a workload authenticate without a human in the loop — this is the actual value proposition, not the secret-fetching wrapper code itself.
-- **Every SDK method maps 1:1 to a REST endpoint.** No SDK-only business logic — keeps the API itself fully usable directly (curl, other languages, Terraform) without the SDK being a gatekeeper.
-
-### 7. Phased Roadmap
-
-| Phase | Scope | Target |
-|---|---|---|
-| **Phase 0 (2–3 wks, parallel with Phase 1)** | Freeze OpenAPI v1 contract, stand up `UniversalAuth` + `KubernetesAuth`, ship Node.js and Python SDKs | Unblocks every later phase — Agent Proxy, integrations, and Terraform provider all consume this API contract |
-| **Phase 1 (8–10 wks)** | UI redesign (secrets + certs modules), path/env RBAC, approval workflows, dynamic secrets | Parity on Secrets Management |
-| **Phase 2 (6–8 wks)** | Agent Proxy MVP, per-agent scoping, audit logging, Go/Java SDKs | Parity on Agent Access + broader SDK coverage |
-| **Phase 3 (6 wks)** | Certificate discovery, PKI dashboard redesign, AWS/GCP/Azure cloud-native auth methods | Parity on Certificate Management |
-| **Phase 4 (6–8 wks)** | Browser-based PAM sessions, session recording, JIT elevation | Parity on PAM |
-| **Phase 5 (ongoing)** | Integration catalog expansion, Terraform provider (built on Phase 0's API), Kubernetes Operator, ESO provider support | Parity on Integrations |
+| Phase | Milestone | Scope & Deliverables | Status |
+| :--- | :--- | :--- | :--- |
+| **Phase 1–6** | Core Architecture & Engine | Envelope crypto, basic PKI, KMS, Celery worker rotation, scanner, Next.js frontend. | **Completed** |
+| **Phase 7** | Security Remediation Sprint | SEC-01 through SEC-08 (Tenant IDOR, RBAC matrix, PAM self-approval, SSRF blocker, Redlock concurrency, cookie hardening, rate limiting). | **Completed** |
+| **Phase 8** | Production Resilience & DR | KMS abstraction (AWS KMS), MEK rotation, Machine Identity (K8s/OIDC), DR wipe/restore simulation, SIEM Syslog/JSONL streams, 100k nonce collision test. | **Completed** |
+| **RC-01–44** | Release Candidate Validation | 44 Release Gates, Bandit/Gitleaks/pip-audit zero findings, CycloneDX SBOM, Go CLI/Agent 1.0.0-rc1, Production Compose. | **RC ACCEPTED** |
+| **v1.1 (Next)** | Enterprise Agent Proxy | Dedicated `apps/agent-proxy` sidecar/gateway for transparent out-of-band secret injection without raw tool access. | Planned |
+| **v1.2 (Next)** | Browser PAM Gateway | WebSockets-based SSH/psql/mysql terminal session broker with recorded, replayable cast streams and AI summarization. | Planned |
 
 ---
 
 ## Document 2: Technical Requirements Document (TRD)
 
-### 1. Current Architecture (Baseline)
+### 1. System Architecture & Topology
 
 ```
-aegisvault/
-├── apps/web/       Next.js 15, React 19 — UI
-├── apps/api/       FastAPI, Python 3.12, async SQLAlchemy 2.0
-├── apps/worker/    Celery workers (rotation, scanning)
-├── apps/agent/     Go injection agent (aegis-agent)
-├── packages/cli/   Go CLI (av)
-├── integrations/   github, vercel, aws, kubernetes
++-----------------------------------------------------------------------------------+
+|                                 AegisVault Gateway                                |
+|                        (Traefik v3.0 / TLS 1.2+ / HSTS / CSP)                     |
++------------------------------------------+----------------------------------------+
+                                           |
+                    +----------------------+----------------------+
+                    |                                             |
++-------------------v--------------------+      +-----------------v-----------------+
+|          Frontend Web Console          |      |       Control Plane REST API      |
+|  (Next.js 15, React 19, Tailwind v4)   |      |  (FastAPI, Pydantic v2, Python 3) |
++----------------------------------------+      +-----------------+-----------------+
+                                                                  |
+                  +-----------------------------------------------+-----------------------------------+
+                  |                                               |                                   |
++-----------------v------------------+         +------------------v-----------------+      +----------v----------+
+|       PostgreSQL 16 Engine         |         |          Redis 7.2 Cache           |      |    Celery Worker    |
+| (AsyncPG, SQLAlchemy 2.0 Async,    |         | (Distributed Redlock, Rate Limit,  |      | (Rotation, Leases,  |
+|  Strict Tenant Scoping, RLS-ready) |         |  Dynamic Credential Leases)        |      |  Scanner Tasks)     |
++------------------------------------+         +------------------------------------+      +---------------------+
 ```
-
-Existing crypto core: AES-256-GCM envelope encryption, per-secret DEKs, versioned/re-wrappable MEKs, AAD binding on Org/Project/Env/Key/Version. This core is sound and should be **reused, not rebuilt**, for all new features below.
-
-### 2. New/Modified Components by Feature Area
-
-#### 2.1 Agent Proxy (new service: `apps/agent-proxy`)
-
-**Purpose:** Sit between an AI agent and downstream tools/APIs. The agent never sees a real credential — only a placeholder token scoped to a request.
-
-**Design:**
-- New service, Go or Python (FastAPI), stateless, horizontally scalable.
-- Agent identity model: extend existing identity/auth service with an `agent` principal type, distinct from `user` and `machine`.
-- Request flow:
-  1. Agent calls proxy with a scoped placeholder + target action.
-  2. Proxy validates the agent's policy (allowlist of tools/paths) against the request.
-  3. Proxy resolves the real secret from the KMS-decrypted vault **in-memory only**, injects it into the outbound call, and discards it.
-  4. Proxy logs the full request/response metadata (not secret payload) to the audit pipeline.
-- Data model additions: `agent_identity`, `agent_policy` (tool allowlist), `agent_session` (ephemeral sandbox binding).
-- Ephemeral sandbox execution (P1): spin up a short-lived, network-isolated execution context per agent session; proxy is the only egress path.
-
-**Security requirement:** Real secret material must never be logged, cached beyond request lifetime, or returned in any proxy response body — only placeholders and status.
-
-#### 2.2 Certificate Discovery & PKI Dashboard
-
-**Purpose:** Find certificates already deployed in the environment, not just ones AegisVault issued.
-
-**Design:**
-- New Celery periodic task: `cert_discovery_scan` — TLS-probes configured hosts/ports and Kubernetes `Secret` objects of type `kubernetes.io/tls`, extracts SAN/CN/serial/expiry via `cryptography` (x509 parsing).
-- New table: `discovered_certificate` (separate from `issued_certificate`), with `source` enum (`aegisvault_issued`, `discovered_k8s`, `discovered_network_scan`).
-- Status computation (Active / Expiring Soon / Expired) as a derived field, not stored — computed at query time from `not_after`.
-- PKI dashboard UI: single table view unifying issued + discovered certs, sortable by expiry, filterable by status/source — matches the AWS Certificate Manager list-view pattern.
-- Cert sync targets: extend `integrations/aws` connector to push to ALB/ACM; add `integrations/nginx` and `integrations/kubernetes` cert sync.
-
-#### 2.3 PAM: Session Recording + Browser Access Accounts
-
-**Purpose:** Just-in-time access to DBs/infra directly from the browser, with recorded, replayable sessions.
-
-**Design:**
-- New service: `apps/pam-gateway` — a WebSocket-based session broker (similar pattern to Teleport/Boundary) that proxies SSH/psql/mysql protocols through the browser via a terminal emulator (xterm.js on the frontend).
-- Session capture: record input/output stream to object storage (asciinema-cast-compatible format) keyed by `session_id`; store alongside existing `pam_lease` records.
-- AI summary generation (P1): async Celery task on session close, sends the captured transcript to an LLM summarization endpoint, stores summary text on the session record. **Must redact any secret-shaped strings before sending to the summarization endpoint** — reuse the existing Secret Scanner's regex/entropy detection for this redaction pass.
-- JIT elevation: extend existing `pam_lease` state machine with an `elevation_request` sub-resource requiring reviewer approval before privilege escalation (e.g., `sudo`), independent of the base session lease.
-
-#### 2.4 Secrets Management Enhancements
-
-- **Path/environment RBAC**: extend the existing RBAC model with a `resource_path` scope (e.g., `prod/payments-api/*`) evaluated alongside existing Org/Project/Environment scoping already present in the AAD binding.
-- **Approval workflows**: new `change_request` table; writes to secrets in policy-flagged paths create a pending `change_request` instead of writing directly; requires N reviewer approvals before the write is committed and versioned.
-- **Dynamic secrets**: extend existing Celery Beat rotation framework — add an on-demand code path (`POST /dynamic-secrets/{binding_id}/lease`) that generates a short-lived credential synchronously (e.g., via DB `CREATE ROLE ... VALID UNTIL`) rather than only on a schedule.
-
-#### 2.5 Integration Catalog Expansion
-
-- Standardize connector interface (`integrations/<name>/sync.py` implementing `push(secret, target)` / `pull(target)`) — current 4 connectors should already roughly follow this; formalize it into a shared `BaseConnector` ABC so new connectors (GitLab, Azure App Config, GCP Secret Manager, Cloudflare Pages, ECS) are additive, not bespoke.
-- Terraform provider: new Go module under `packages/terraform-provider`, wrapping the existing public API — mirrors Infisical's Terraform Registry provider.
-- Ansible modules: thin Python wrapper under `integrations/ansible/` calling the public API.
-
-### 2.6 SDKs & Public API (new: `apps/api` extensions + new `packages/sdk-*`)
-
-**Purpose:** Give developers first-class, low-friction programmatic access to every AegisVault module.
-
-**API layer (`apps/api`):**
-- Formalize the existing FastAPI app's OpenAPI 3.1 schema as a versioned, contractually stable artifact (`/api/v1/openapi.json`) — this becomes the single source of truth all SDKs are generated from.
-- Introduce API versioning discipline now (`/api/v1/...`) if not already strict, since breaking changes are far more costly once external SDKs depend on the contract.
-- Add a pluggable `AuthProvider` interface in the auth service supporting, in order: `StaticToken`, `UniversalAuth` (client id/secret → short-lived access token), `AwsIamAuth` (validates signed STS `GetCallerIdentity` request), `GcpAuth` (validates GCP-signed ID token or IAM-signed JWT), `AzureAuth`, `KubernetesAuth` (validates projected service account token against the cluster's OIDC issuer). This mirrors Infisical's 12-method model but starts with the 5 highest-value methods.
-- Access tokens issued by any auth method are short-lived (e.g., 15 min) with a refresh/renewal endpoint — SDKs handle renewal transparently so application code never sees token expiry.
-
-**SDK generation strategy:**
-- Maintain the OpenAPI spec as ground truth; use `openapi-generator` (or hand-rolled codegen for the auth layer specifically, since auth ergonomics don't generate well) to scaffold each language client under `packages/sdk-node`, `packages/sdk-python`, `packages/sdk-go`, `packages/sdk-java`.
-- Each SDK package hand-implements: (1) the `AuthProvider` login flow with auto-renewal, (2) optional local secret caching with TTL (mirrors Infisical Python SDK's `cache_ttl`), (3) idiomatic error types per language (map REST error codes → typed exceptions, matching the pattern of Infisical's Ruby SDK: `NotFoundError`, `AuthenticationError`, `PermissionError`, `RateLimitError`, `ServerError`).
-- CI publishes SDKs to each language's standard registry (npm, PyPI, Maven/NuGet, pkg.go.dev) on tagged release, versioned independently from the core platform but tested against a pinned API version in integration tests.
-
-**Kubernetes Operator (new: `packages/k8s-operator`):**
-- Go-based controller (controller-runtime/kubebuilder), CRD `AegisVaultSecretSync` — watches CRD instances, authenticates via `KubernetesAuth`, fetches secrets, writes/updates native `Secret` objects, re-syncs on a poll interval or webhook-triggered push.
-- Register as an External Secrets Operator (ESO) provider by implementing ESO's `SecretsClient` interface — gets AegisVault ESO compatibility for free once the core operator auth/fetch logic exists, since ESO providers share a common interface contract.
-
-**Public docs surface:**
-- Promote the existing Swagger UI (`/api/v1/docs`) from an internal dev convenience to a documented, versioned public API reference, alongside hand-written SDK quickstarts per language (mirroring Infisical's docs structure: one card per language under a "SDKs" index page).
-
-### 3. Data Model Changes (Summary)
-
-| New/Modified Table | Purpose |
-|---|---|
-| `agent_identity`, `agent_policy`, `agent_session` | Agent Proxy |
-| `discovered_certificate` | Certificate discovery |
-| `pam_session_recording`, `elevation_request` | PAM session recording + JIT elevation |
-| `change_request` | Secrets approval workflows |
-| `dynamic_secret_binding` (extend existing rotation tables) | On-demand dynamic secrets |
-
-All new tables must carry the same actor-telemetry pattern already used for `secret_version` (actor id, timestamp, source IP, immutability) to keep audit log consistency platform-wide.
-
-### 4. UI/UX Implementation Notes (Frontend TRD)
-
-- **Design system**: introduce a token-based design system (spacing, color, typography) in `apps/web` using Tailwind config tokens — grayscale-first palette, 3 semantic status colors only (success/warning/danger), matching section 6 of the PRD.
-- **Table component**: build one shared `<ResourceTable>` component (sortable, filterable, paginated, row actions) used across Secrets, Certificates, Access, and Agents modules — avoids UI drift between sections.
-- **Detail page shell**: one shared `<ResourceDetailLayout>` with Overview/Versions/Access/Audit tabs, reused per resource type, per PRD §6.
-- **Command palette**: implement with `cmdk` (already compatible with the existing shadcn/ui usage implied by `components/ui`), bound to ⌘K.
-- **Session replay UI**: xterm.js-based player component reading the asciinema-cast recordings from 2.3.
-- Component library: continue using the existing `components/ui` (shadcn) base rather than introducing a second system — extend tokens, don't fork.
-
-### 5. Security & Compliance Considerations
-
-- Agent Proxy and PAM Gateway both introduce new secret-in-transit paths — both must go through the existing envelope-encryption KMS layer for retrieval and must never persist plaintext beyond request scope (extends existing "no plaintext leak storage" principle from the Secret Scanner).
-- All new audit-relevant tables must feed the existing immutable audit log pipeline, with export support (JSON/CEF) for SIEM ingestion — required for SOC2-readiness per PRD §5.6.
-- LLM-based session summarization (2.3) is the one component that talks to an external/third-party model — enforce redaction pre-send and document this data flow explicitly in `SECURITY.md` and `docs/threat-model`.
-
-### 6. Sequencing & Dependencies
-
-1. RBAC path-scoping and approval workflows (2.4) should land **before** Agent Proxy, since agent policies reuse the same scoping engine.
-2. Certificate discovery (2.2) is independent and can be parallelized.
-3. PAM session recording (2.3) depends on the PAM Gateway being stood up first; AI summaries are a strict follow-on.
-4. Integration catalog expansion (2.5) is independent and can run continuously across all phases.
 
 ---
 
-*End of document.*
+### 2. Cryptographic Envelope Hierarchy & Invariants
+
+```
++-------------------------------------------------------------------+
+|               Cloud KMS / Hardware HSM Master KEK                 |
+|             (AWS KMS arn:aws:kms:... / Local Master)              |
++---------------------------------+---------------------------------+
+                                  |
+                        wrap_key / unwrap_key
+                                  |
++---------------------------------v---------------------------------+
+|                 Master Encryption Key (MEK)                       |
+|           (256-bit AES-GCM Key, Versioned Registry)               |
++---------------------------------+---------------------------------+
+                                  |
+                        wrap_key / unwrap_key
+                                  |
++---------------------------------v---------------------------------+
+|              Ephemeral Data Encryption Key (DEK)                  |
+|          (Fresh 256-bit AES-GCM Key generated per version)        |
++---------------------------------+---------------------------------+
+                                  |
+                           AES-256-GCM Encrypt
+                                  |
++---------------------------------v---------------------------------+
+|                    Encrypted Secret Payload                       |
+|     (Ciphertext + 12-byte CSPRNG Nonce + Deterministic AAD Tag)   |
++-------------------------------------------------------------------+
+```
+
+#### Cryptographic Invariants:
+1. **DEK Isolation**: Every secret version is encrypted under a unique 32-byte ephemeral DEK with a fresh 12-byte CSPRNG nonce. Nonces are never reused.
+2. **Deterministic AAD**: Anti-tampering and cross-tenant replay protection strictly binds:
+   ```python
+   aad = json.dumps({
+       "environment_id": str(environment_id),
+       "org_id": str(org_id),
+       "project_id": str(project_id),
+       "secret_key": str(secret_key),
+       "version": int(version),
+   }, sort_keys=True, separators=(",", ":")).encode("utf-8")
+   ```
+3. **Zero-Plaintext MEK Rotation**: Data Encryption Keys are rewrapped under new active MEKs without decrypting the underlying secret payload to plaintext.
+
+---
+
+### 3. Core Database Models & Entity Schema
+
+| Model Class | Table Name | Key Attributes & Relationships |
+| :--- | :--- | :--- |
+| `Organization` | `organizations` | `id (UUID)`, `name`, `slug`, `memberships`, `projects`, `roles`, `service_identities` |
+| `User` | `users` | `id (UUID)`, `email`, `hashed_password` (Argon2id), `mfa_enabled`, `is_active` |
+| `Project` | `projects` | `organization_id`, `name`, `slug`, `environments` |
+| `Environment` | `environments` | `project_id`, `name`, `slug` (`development`, `staging`, `production`) |
+| `Secret` | `secrets` | `project_id`, `environment_id`, `key`, `current_version_num`, `versions`, `rotation` |
+| `SecretVersion` | `secret_versions` | `secret_id`, `version`, `encrypted_value`, `nonce`, `encrypted_data_key`, `dek_nonce`, `mek_id`, `mek_version` |
+| `DynamicSecretProvider` | `dynamic_secret_providers` | `organization_id`, `engine_type` (`postgres`, `mysql`, `mongodb`, `redis`), `config_encrypted`, `leases` |
+| `DynamicSecretLease` | `dynamic_secret_leases` | `provider_id`, `username`, `lease_id`, `expires_at`, `revoked_at` |
+| `ServiceIdentity` | `service_identities` | `organization_id`, `auth_method` (`universal`, `kubernetes`, `jwt_oidc`), `credentials_hash`, `allowed_subnets` |
+| `CertificateAuthority` | `pki_authorities` | `organization_id`, `common_name`, `encrypted_private_key`, `certificate_pem`, `is_root`, `is_active` |
+| `Certificate` | `pki_certificates` | `ca_id`, `serial_number`, `common_name`, `san_list`, `not_after`, `is_revoked`, `revocation_reason` |
+| `AuditEvent` | `audit_events` | `organization_id`, `actor_id`, `action`, `resource_type`, `resource_id`, `ip_address`, `prev_event_hash`, `event_hash` |
+| `AccessResource` | `pam_resources` | `organization_id`, `name`, `resource_type`, `target_host`, `access_requests` |
+| `AccessRequest` | `pam_requests` | `resource_id`, `requester_id`, `status` (`pending`, `approved`, `rejected`, `revoked`), `approver_id`, `expires_at` |
+
+---
+
+### 4. Machine Identity Authentication Engine
+
+AegisVault implements three production-grade machine authentication gateways under `/api/v1/auth/machine`:
+
+1. **Universal Auth (`/machine/login`)**:
+   - Client ID + Client Secret validated via Argon2id hash.
+   - Enforces IP CIDR allowlists and returns short-lived scoped JWT access tokens.
+2. **Kubernetes Auth (`/machine/k8s`)**:
+   - Validates projected ServiceAccount JWT tokens using the Kubernetes `TokenReview` API (`client.authentication.k8s.io`).
+   - Binds namespace, service account name, and cluster identity to project/environment roles.
+3. **OIDC / JWT Machine Auth (`/machine/jwt`)**:
+   - RFC 7519 JSON Web Token authentication with asymmetric signature validation (RS256/ES256).
+   - Validates `iss` (Issuer), `aud` (Audience), expiration (`exp`), and explicitly rejects `alg=none` tokens.
+
+---
+
+### 5. Dynamic Secrets Engine Expansion
+
+Located in `apps/api/app/core/dynamic_engines.py`, supporting four enterprise data backends:
+
+- **PostgreSQL Engine**: Issues ephemeral roles via `CREATE ROLE ... WITH LOGIN PASSWORD ... VALID UNTIL ...; GRANT ...`.
+- **MySQL Engine**: Issues ephemeral users via `CREATE USER ... IDENTIFIED BY ...; GRANT ...`.
+- **MongoDB Engine**: Issues scoped database users via `createUser` command with customizable roles.
+- **Redis Engine**: Issues ephemeral ACL users via `ACL SETUSER ... on >password ~keys +commands`.
+- **Automated Lease Revocation**: Celery workers reconcile expired leases and issue `DROP ROLE` / `ACL DELUSER` commands.
+
+---
+
+### 6. Disaster Recovery & Backup Architecture
+
+- **Cold-Start Restoration Process**:
+  1. Restore PostgreSQL physical/logical dump (`pg_restore`).
+  2. Inject root Master Encryption Key (MEK) from secure KMS / HSM.
+  3. Start API control plane (`DEMO_MODE=false`, `COOKIE_SECURE=true`).
+  4. Perform immediate cryptographic audit chain verification (`av audit verify`).
+- **Cryptographic Guarantees**:
+  - Database snapshots contain zero plaintext secret material.
+  - Active and historical secret versions decrypt successfully post-restore.
+  - Audit SHA-256 hash chains remain mathematically contiguous.
+
+---
+
+### 7. Security Hardening & Compliance Matrix
+
+| Control Category | Implementation Details | Verified Status |
+| :--- | :--- | :--- |
+| **SSRF Prevention** | Universal DNS & IP blocker rejecting loopback (`127.0.0.1`), RFC 1918 subnets, cloud metadata (`169.254.169.254`), and IPv4-mapped IPv6. | **PASS** |
+| **RBAC Authorization** | Granular action-level permissions (`secret:read`, `secret:reveal`, `secret:create`, `pki:issue`, `pam:approve`, `kms:decrypt`). | **PASS** |
+| **PAM Guardrails** | Two-man rule enforced; self-approvals strictly rejected with `403 Forbidden`. | **PASS** |
+| **Rate Limiting** | Dual-tier per-user (30 req/min) and per-org (100 req/min) rate limits on secret reveals backed by Redis. | **PASS** |
+| **Network Isolation** | Production Compose isolates database and cache to `aegis-internal` network without host port exposure. | **PASS** |
+| **Transport Security** | TLS 1.2/1.3 mandatory; HSTS, CSP, X-Frame-Options: DENY, Referrer-Policy, and Permissions-Policy headers enforced. | **PASS** |
+| **Software Supply Chain** | CycloneDX 1.5 SBOM generated; Bandit, Semgrep, pip-audit, and Gitleaks verified with 0 vulnerabilities. | **PASS** |

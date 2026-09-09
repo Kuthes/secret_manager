@@ -56,7 +56,10 @@ __pycache__/
 .env.*
 !.env.example
 !.env.staging.example
+!config/.env.example
+!config/.env.staging.example
 
 # Build info and artifacts
 artifacts/
 *.tsbuildinfo
+

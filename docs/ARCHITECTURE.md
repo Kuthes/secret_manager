@@ -57,3 +57,30 @@ AegisVault implements real envelope encryption using Python's standard `cryptogr
 4. **Privileged Access Management (PAM)**: Provides time-bound access approvals with auto-expiration and justification requirements.
 5. **Secret Scanner**: Analyzes code files for leaked credentials using regex patterns and Shannon entropy, generating safe redacted previews.
 6. **Multi-Target Sync**: Connects to GitHub Actions, Vercel, AWS Secrets Manager, and Kubernetes Secrets.
+
+---
+
+## 4. The Fortress Topology: Independent Towers & Secure Gates
+
+AegisVault enforces a **Fortress Model** where each operational domain stands as an isolated tower protected by strict cryptographic and authorization gates:
+
+### Tower 1: Command Center (Web Console)
+- **Role**: Operator and Security officer control room.
+- **Location**: `app/` (Next.js 15, React 19, Tailwind v4).
+- **Gate Protocol**: HTTPS / mTLS, strict CSP, SameSite=Strict cookies, anti-CSRF tokens, dual-tier rate limiting with justification audits.
+
+### Tower 2: Operations Tower (API & Async Workers)
+- **Role**: Central intelligence, cryptographic vault core, lease generation, and rotation scheduler.
+- **Location**: `apps/api/` and `apps/worker/` (FastAPI, SQLAlchemy 2.0 Async, Celery, Redis locks).
+- **Gate Protocol**: Authenticated Additional Data (AAD) tenant-binding, envelope encryption via KMS/MEK, zero-plaintext memory caches.
+
+### Tower 3: Distributed Weapons (SDKs & Agents)
+- **Role**: Client libraries, CI/CD injection tools, and autonomous agent sidecars.
+- **Location**: `sdks/` (`sdks/python/`, `sdks/go/`, `sdks/js/`).
+- **Gate Protocol**: Machine Identity (Universal Auth, K8s TokenReview, OIDC/JWT), ephemeral memory-only credential injection (`av run`), zero disk persistence.
+
+### Tower 4: Fortress Infrastructure & Ledger (Gates & Citadel)
+- **Role**: Orchestration, automated deployment, tamper-evident ledgers, and disaster recovery.
+- **Location**: `infrastructure/` and `docs/`.
+- **Gate Protocol**: SHA-256 cryptographic hash chaining for audit logs, RFC 5424 Syslog streaming, deterministic zero-plaintext cold-start recovery.
+

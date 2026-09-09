@@ -1,0 +1,17 @@
+name: Security Scanner & SAST
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 0'
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run Bandit Security Scanner
+      run: |
+        pip install bandit
+        bandit -r apps/api/app -ll
