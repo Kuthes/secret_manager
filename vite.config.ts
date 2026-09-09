@@ -47,9 +47,18 @@ export default defineConfig(async () => {
     server: {
       host: "0.0.0.0",
       allowedHosts: ["terminal.local"],
+      hmr: {
+        overlay: false,
+      },
       ...(isCodexSeatbeltSandbox
         ? { watch: { useFsEvents: false, usePolling: true } }
         : {}),
+    },
+    optimizeDeps: {
+      noDiscovery: true,
+    },
+    ssr: {
+      noExternal: true,
     },
     plugins: [
       vinext(),

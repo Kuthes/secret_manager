@@ -8,11 +8,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aegisvault_dev_pass}
       POSTGRES_DB: ${POSTGRES_DB:-aegisvault}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-54329}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aegisvault} -d ${POSTGRES_DB:-aegisvault}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aegisvault} -d ${POSTGRES_DB:-aegisvault}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,11 +22,11 @@ services:
     container_name: aegisvault-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -66,7 +66,7 @@ services:
       dockerfile: deploy/docker/Dockerfile.worker
     container_name: aegisvault-worker
     restart: unless-stopped
-    command: ["celery", "-A", "apps.worker.celery_app", "worker", "--loglevel=info"]
+    command: [ "celery", "-A", "apps.worker.celery_app", "worker", "--loglevel=info" ]
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aegisvault}:${POSTGRES_PASSWORD:-aegisvault_dev_pass}@postgres:5432/${POSTGRES_DB:-aegisvault}
       REDIS_URL: redis://redis:6379/0
@@ -83,10 +83,10 @@ services:
       dockerfile: deploy/docker/Dockerfile.worker
     container_name: aegisvault-scheduler
     restart: unless-stopped
-    command: ["celery", "-A", "apps.worker.celery_app", "beat", "--loglevel=info", "-s", "/tmp/celerybeat-schedule"]
+    command: ["celery", "-A", "apps.worker.celery_app", "beat", "--loglevel=info"]
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aegisvault}:${POSTGRES_PASSWORD:-aegisvault_dev_pass}@postgres:5432/${POSTGRES_DB:-aegisvault}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
         condition: service_healthy

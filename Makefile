@@ -9,13 +9,13 @@ setup:
 	@echo "✓ Environment setup complete."
 
 up:
-	docker compose up --build -d
+	docker-compose up --build -d
 
 down:
-	docker compose down
+	docker-compose down
 
 logs:
-	docker compose logs -f
+	docker-compose logs -f
 
 test:
 	@echo "Running backend unit and integration test suite..."
@@ -32,7 +32,7 @@ security-check:
 
 reset-demo:
 	@echo "Resetting local demo database volumes..."
-	docker compose down -v
-	docker compose up -d postgres redis
+	docker-compose down -v
+	docker-compose up -d postgres redis
 	@sleep 3
-	docker compose restart api
+	docker-compose restart api

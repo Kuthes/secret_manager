@@ -37,16 +37,20 @@ yarn-error.log*
 next-env.d.ts
 /dist/
 /.wrangler/
-/.sites-runtime/
+**/.sites-runtime/
 /outputs/
 /work/
+
+# Python virtual environment
+.venv/
+*.venv
+apps/api/.venv/
 
 # Python generated files
 __pycache__/
 *.py[cod]
 .pytest_cache/
 
-# Local secrets
 # Local secrets
 .env
 .env.*
